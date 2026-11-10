@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#05060b" />
+    <title>The Last Encore</title>
+    <link rel="stylesheet" href="/src/style.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main id="game">
+      <header class="hud">
+        <div class="brand">
+          <span class="eyebrow">A sound-powered journey</span>
+          <h1>The Last Encore</h1>
+        </div>
+        <div class="counter" aria-live="polite">
+          <span class="note-icon">♪</span>
+          <span id="note-count">0 / 5</span>
+        </div>
+      </header>
+
+      <section class="mission" id="mission">
+        <p class="mission-label">Tonight's mission</p>
+        <p id="mission-text">Cross the silent district. Reach the rooftop show.</p>
+      </section>
+
+      <section class="intro" id="intro">
+        <p class="kicker">The city has forgotten how to sing.</p>
+        <p>But the show must go on.</p>
+        <button id="start-button" type="button">Enter the silence</button>
+      </section>
+
+      <section class="encore" id="encore" hidden>
+        <p class="kicker">District restored</p>
+        <h2>One song closer.</h2>
+        <p id="encore-score"></p>
+        <button id="restart-button" type="button">Play it again</button>
+      </section>
+
+      <div class="controls" id="controls">
+        <span><kbd>A</kbd><kbd>D</kbd> move</span>
+        <span><kbd>W</kbd> / <kbd>Space</kbd> jump</span>
+      </div>
+
+      <div class="vignette" aria-hidden="true"></div>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
