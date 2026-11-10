@@ -22,7 +22,7 @@ scene.background = new THREE.Color(0x050711);
 scene.fog = new THREE.FogExp2(0x070914, 0.032);
 
 const camera = new THREE.OrthographicCamera(-8, 8, 5, -5, 0.1, 100);
-camera.position.set(0, 1.5, 12);
+camera.position.set(0, 0.7, 12);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
