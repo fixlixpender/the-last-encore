@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 const TOTAL_NOTES = 5;
-const PLAYER = { width: 0.82, height: 2.04, speed: 5.4, jump: 8.6 };
+const PLAYER = { width: 0.82, height: 2.04, speed: 5.4, jump: 10.8 };
 const PLAYER_Z = 2;
 const PLAYER_START_Y = -0.98;
 const GRAVITY = 18;
@@ -109,9 +109,9 @@ function createStage() {
   const left = new THREE.Mesh(pillarGeometry, stageMaterial);
   const right = left.clone();
   const roof = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.42, 1.2), stageMaterial);
-  left.position.set(32, 1.25, -0.2);
-  right.position.set(36.4, 1.25, -0.2);
-  roof.position.set(34.2, 3.18, -0.2);
+  left.position.set(32, 0.1, -0.2);
+  right.position.set(36.4, 0.1, -0.2);
+  roof.position.set(34.2, 2.2, -0.2);
   scene.add(left, right, roof);
 
   const canvas = document.createElement("canvas");
@@ -133,19 +133,19 @@ function createStage() {
     new THREE.PlaneGeometry(3.1, 1.05),
     new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas) }),
   );
-  sign.position.set(34.2, 2.35, 0.45);
+  sign.position.set(34.2, 1.35, 0.45);
   scene.add(sign);
 }
 
 function createWorld() {
   createCity();
   addPlatform(15, -2.65, 44, 1.3, 0x121722);
-  addPlatform(6.2, 0, 3.4, 0.48);
+  addPlatform(6.2, 0.75, 3.4, 0.48);
   addPlatform(11.7, 1.25, 3.1, 0.48);
-  addPlatform(17.4, -0.15, 3.8, 0.48);
+  addPlatform(17.4, 0.75, 3.8, 0.48);
   addPlatform(23.2, 1.2, 3.2, 0.48);
-  addPlatform(28.2, -0.05, 3, 0.48);
-  addPlatform(34.2, -0.6, 7.4, 0.55, 0x21162a);
+  addPlatform(28.2, 0.75, 3, 0.48);
+  addPlatform(34.2, -2.275, 7.4, 0.55, 0x21162a);
   createStage();
 }
 
@@ -220,7 +220,7 @@ function addNote(x, y, phase) {
 }
 
 function createNotes() {
-  [[3.3, -0.9], [6.2, 1.1], [12, 2.35], [23.2, 2.3], [29.5, 0.85]]
+  [[3.3, -0.9], [6.2, 2.05], [12, 2.35], [23.2, 2.3], [29.5, 2.05]]
     .forEach(([x, y], index) => addNote(x, y, index * 1.2));
 }
 
