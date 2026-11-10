@@ -1,7 +1,9 @@
 import * as THREE from "three";
 
 const TOTAL_NOTES = 5;
-const PLAYER = { width: 0.82, height: 1.78, speed: 5.4, jump: 8.6 };
+const PLAYER = { width: 0.82, height: 2.04, speed: 5.4, jump: 8.6 };
+const PLAYER_Z = 2;
+const PLAYER_START_Y = -0.98;
 const GRAVITY = 18;
 
 const ui = {
@@ -190,7 +192,7 @@ function createPlayer() {
   rightBoot.position.set(0.22, -0.84, 0.04);
   [body, head, beard, hair, leftBoot, rightBoot].forEach((mesh) => (mesh.castShadow = true));
   group.add(createGuitar(), body, head, beard, hair, leftBoot, rightBoot);
-  group.position.set(0, -1.1, 0);
+  group.position.set(0, PLAYER_START_Y, PLAYER_Z);
   scene.add(group);
   return group;
 }
@@ -212,7 +214,7 @@ function addNote(x, y, phase) {
   flag.position.set(0.06, 0.65, 0);
   flag.rotation.z = -0.4;
   group.add(head, stem, flag);
-  group.position.set(x, y, 0.2);
+  group.position.set(x, y, PLAYER_Z + 0.1);
   scene.add(group);
   notes.push({ group, phase, originY: y, collected: false });
 }
@@ -276,7 +278,7 @@ function reset() {
   collected = 0;
   velocityY = 0;
   onGround = false;
-  player.position.set(0, -1.1, 0);
+  player.position.set(0, PLAYER_START_Y, PLAYER_Z);
   player.rotation.set(0, 0, 0);
   const guitar = player.getObjectByName("guitar");
   guitar.position.set(-0.14, 0.02, -0.5);
@@ -339,10 +341,10 @@ function updatePlayer(delta) {
   }
 
   if (player.position.y < -7) {
-    player.position.set(Math.max(0, player.position.x - 3), 2, 0);
+    player.position.set(Math.max(0, player.position.x - 3), 2, PLAYER_Z);
     velocityY = 0;
   }
-  player.position.z = direction && onGround ? Math.sin(performance.now() * 0.014) * 0.07 : 0;
+  player.position.z = PLAYER_Z + (direction && onGround ? Math.sin(performance.now() * 0.014) * 0.07 : 0);
   if (player.position.x > 33.1 && player.position.y > -1.8) finish();
 }
 
