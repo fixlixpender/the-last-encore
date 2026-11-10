@@ -64,6 +64,7 @@ let velocityY = 0;
 let onGround = false;
 let facing = 1;
 let audio = null;
+let landingBounce = 0;
 
 function mat(color, roughness = 0.76, metalness = 0.18) {
   return new THREE.MeshStandardMaterial({ color, roughness, metalness });
@@ -151,47 +152,153 @@ function createWorld() {
 
 function createGuitar() {
   const guitar = new THREE.Group();
-  const wood = mat(0x9b315c, 0.38, 0.15);
-  const dark = mat(0x25151c, 0.5, 0.08);
-  const lower = new THREE.Mesh(new THREE.SphereGeometry(0.34, 16, 12), wood);
-  const upper = new THREE.Mesh(new THREE.SphereGeometry(0.26, 16, 12), wood);
-  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.86, 0.08), dark);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.25, 0.1), wood);
-  lower.scale.set(0.82, 1.05, 0.28);
-  lower.position.y = -0.12;
-  upper.scale.set(0.78, 0.88, 0.26);
-  upper.position.y = 0.24;
-  neck.position.y = 0.78;
-  head.position.y = 1.29;
-  guitar.add(lower, upper, neck, head);
-  guitar.rotation.z = -0.48;
-  guitar.position.set(-0.14, 0.02, -0.5);
+  const lacquer = mat(0xa72b62, 0.3, 0.24);
+  const edge = mat(0x32131f, 0.55, 0.08);
+  const metal = mat(0xb7d8dd, 0.22, 0.82);
+  const lower = new THREE.Mesh(new THREE.SphereGeometry(0.31, 20, 14), lacquer);
+  const upper = new THREE.Mesh(new THREE.SphereGeometry(0.23, 20, 14), lacquer);
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.105, 0.82, 0.075), edge);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.2, 0.095), lacquer);
+  const soundHole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.015, 16), edge);
+  const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.045, 0.035), metal);
+  lower.scale.set(0.86, 1.04, 0.32);
+  lower.position.y = -0.16;
+  upper.scale.set(0.8, 0.9, 0.3);
+  upper.position.y = 0.18;
+  neck.position.y = 0.69;
+  head.position.y = 1.17;
+  soundHole.rotation.x = Math.PI / 2;
+  soundHole.position.set(0.02, -0.06, 0.105);
+  bridge.position.set(0.02, -0.3, 0.11);
+  guitar.add(lower, upper, neck, head, soundHole, bridge);
+  guitar.rotation.z = -0.42;
+  guitar.position.set(-0.24, -0.01, -0.34);
   guitar.name = "guitar";
   return guitar;
 }
 
 function createPlayer() {
   const group = new THREE.Group();
-  const coat = mat(0x202c39, 0.78, 0.08);
-  const skin = mat(0xc18a6a, 0.86, 0.02);
-  const dark = mat(0x251d1b, 1, 0);
-  const boots = mat(0x131113, 0.9, 0.03);
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.38, 0.65, 5, 10), coat);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.33, 18, 14), skin);
-  const beard = new THREE.Mesh(new THREE.ConeGeometry(0.29, 0.48, 14), dark);
-  const hair = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.42, 0.34), dark);
-  const leftBoot = new THREE.Mesh(new THREE.BoxGeometry(0.27, 0.36, 0.38), boots);
-  const rightBoot = leftBoot.clone();
-  body.position.y = -0.03;
-  head.position.set(0.04, 0.79, 0);
-  beard.position.set(0.12, 0.58, 0.18);
-  beard.rotation.x = -0.15;
-  hair.position.set(-0.06, 1.1, -0.02);
-  hair.rotation.z = -0.18;
-  leftBoot.position.set(-0.22, -0.84, 0.04);
-  rightBoot.position.set(0.22, -0.84, 0.04);
-  [body, head, beard, hair, leftBoot, rightBoot].forEach((mesh) => (mesh.castShadow = true));
-  group.add(createGuitar(), body, head, beard, hair, leftBoot, rightBoot);
+  const visual = new THREE.Group();
+  const coat = mat(0x263b50, 0.7, 0.08);
+  const coatDark = mat(0x101c2a, 0.82, 0.04);
+  const denim = mat(0x18283d, 0.86, 0.03);
+  const skin = mat(0xc68d6d, 0.84, 0.01);
+  const hairMaterial = mat(0x241a19, 0.98, 0);
+  const boots = mat(0x100e12, 0.72, 0.12);
+  const cyan = new THREE.MeshStandardMaterial({
+    color: 0x4ccde0,
+    emissive: 0x0d7585,
+    emissiveIntensity: 0.65,
+    roughness: 0.45,
+  });
+  const magenta = mat(0x8f285e, 0.68, 0.08);
+
+  const guitar = createGuitar();
+
+  const torso = new THREE.Group();
+  const chest = new THREE.Mesh(new THREE.CapsuleGeometry(0.31, 0.45, 5, 12), coat);
+  chest.scale.set(1, 1.08, 0.72);
+  chest.position.y = 0.14;
+  const coatSkirt = new THREE.Mesh(new THREE.CylinderGeometry(0.29, 0.37, 0.5, 12), coatDark);
+  coatSkirt.position.y = -0.28;
+  const lapel = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.48, 0.045), cyan);
+  lapel.position.set(0.2, 0.15, 0.24);
+  lapel.rotation.z = -0.18;
+  const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.055, 7, 16, Math.PI * 1.2), magenta);
+  scarf.position.set(0, 0.45, 0.02);
+  scarf.rotation.set(Math.PI / 2, 0, -0.35);
+  torso.add(chest, coatSkirt, lapel, scarf);
+
+  function createArm(x, z) {
+    const arm = new THREE.Group();
+    const sleeve = new THREE.Mesh(new THREE.CapsuleGeometry(0.105, 0.34, 4, 8), coat);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.115, 12, 9), skin);
+    sleeve.position.y = -0.22;
+    hand.position.y = -0.49;
+    arm.position.set(x, 0.36, z);
+    arm.add(sleeve, hand);
+    return arm;
+  }
+
+  function createLeg(x, z) {
+    const leg = new THREE.Group();
+    const trouser = new THREE.Mesh(new THREE.CapsuleGeometry(0.115, 0.28, 4, 8), denim);
+    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.27, 0.22, 0.32), boots);
+    trouser.position.y = -0.26;
+    boot.position.set(0.07, -0.59, 0.035);
+    boot.rotation.z = -0.04;
+    leg.position.set(x, -0.32, z);
+    leg.add(trouser, boot);
+    return { leg, boot };
+  }
+
+  const backArm = createArm(-0.2, -0.02);
+  const frontArm = createArm(0.22, 0.27);
+  const left = createLeg(-0.14, -0.04);
+  const right = createLeg(0.14, 0.18);
+
+  const headRig = new THREE.Group();
+  headRig.position.y = 0.71;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.275, 20, 15), skin);
+  head.scale.set(0.92, 1.04, 0.9);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 9), skin);
+  nose.position.set(0.255, 0.015, 0.01);
+  const beard = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.43, 15), hairMaterial);
+  beard.position.set(0.1, -0.2, 0.11);
+  beard.rotation.z = -0.2;
+  beard.name = "beard";
+  const moustache = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.16, 3, 7), hairMaterial);
+  moustache.position.set(0.205, -0.075, 0.16);
+  moustache.rotation.z = Math.PI / 2;
+  const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x9ff7ff });
+  const eyeNear = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 6), eyeMaterial);
+  const eyeFar = eyeNear.clone();
+  eyeNear.position.set(0.205, 0.08, 0.21);
+  eyeFar.position.set(0.205, 0.08, -0.21);
+
+  const hair = new THREE.Group();
+  [-0.1, 0, 0.1].forEach((x, index) => {
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.25 + index * 0.025, 8), hairMaterial);
+    spike.position.set(x, 0.27 + index * 0.015, 0);
+    spike.rotation.z = -0.12 - index * 0.05;
+    hair.add(spike);
+  });
+  hair.position.set(-0.025, 0.03, 0);
+  headRig.add(head, nose, beard, moustache, eyeNear, eyeFar, hair);
+
+  const coatTailLeft = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.42, 8), coatDark);
+  const coatTailRight = coatTailLeft.clone();
+  coatTailLeft.position.set(-0.14, -0.49, -0.02);
+  coatTailRight.position.set(0.14, -0.49, 0.02);
+  coatTailLeft.rotation.z = -0.08;
+  coatTailRight.rotation.z = 0.08;
+
+  [guitar, backArm, left.leg, right.leg, torso, coatTailLeft, coatTailRight, headRig, frontArm]
+    .forEach((part) => visual.add(part));
+  visual.traverse((object) => {
+    if (object.isMesh) object.castShadow = true;
+  });
+
+  const rim = new THREE.PointLight(0x58def2, 2.4, 3.3, 2);
+  rim.position.set(-0.25, 0.65, 1.15);
+  group.add(visual, rim);
+  group.userData.rig = {
+    visual,
+    torso,
+    headRig,
+    beard,
+    frontArm,
+    backArm,
+    leftLeg: left.leg,
+    rightLeg: right.leg,
+    leftBoot: left.boot,
+    rightBoot: right.boot,
+    coatTailLeft,
+    coatTailRight,
+    guitar,
+    walkTime: 0,
+  };
   group.position.set(0, PLAYER_START_Y, PLAYER_Z);
   scene.add(group);
   return group;
@@ -278,11 +385,15 @@ function reset() {
   collected = 0;
   velocityY = 0;
   onGround = false;
+  landingBounce = 0;
   player.position.set(0, PLAYER_START_Y, PLAYER_Z);
   player.rotation.set(0, 0, 0);
+  player.userData.rig.walkTime = 0;
+  player.userData.rig.visual.position.set(0, 0, 0);
+  player.userData.rig.visual.scale.set(1, 1, 1);
   const guitar = player.getObjectByName("guitar");
-  guitar.position.set(-0.14, 0.02, -0.5);
-  guitar.rotation.set(0, 0, -0.48);
+  guitar.position.set(-0.24, -0.01, -0.34);
+  guitar.rotation.set(0, 0, -0.42);
   notes.forEach((note) => {
     note.collected = false;
     note.group.visible = true;
@@ -332,6 +443,7 @@ function updatePlayer(delta) {
       const overlap = player.position.x + PLAYER.width / 2 > platform.x - platform.width / 2
         && player.position.x - PLAYER.width / 2 < platform.x + platform.width / 2;
       if (overlap && previousBottom >= top - 0.14 && currentBottom <= top) {
+        landingBounce = Math.min(1, Math.abs(velocityY) / 8);
         player.position.y = top + PLAYER.height / 2;
         velocityY = 0;
         onGround = true;
@@ -344,8 +456,46 @@ function updatePlayer(delta) {
     player.position.set(Math.max(0, player.position.x - 3), 2, PLAYER_Z);
     velocityY = 0;
   }
-  player.position.z = PLAYER_Z + (direction && onGround ? Math.sin(performance.now() * 0.014) * 0.07 : 0);
+  player.position.z = PLAYER_Z;
+  animateCharacter(delta, clock.elapsedTime, direction);
   if (player.position.x > 33.1 && player.position.y > -1.8) finish();
+}
+
+function animateCharacter(delta, elapsed, direction) {
+  const rig = player.userData.rig;
+  const moving = Math.abs(direction) > 0 && onGround;
+  if (moving) rig.walkTime += delta * 10.5;
+  const step = moving ? Math.sin(rig.walkTime) : 0;
+  const stepLift = moving ? Math.abs(Math.cos(rig.walkTime)) : 0;
+  const idle = Math.sin(elapsed * 2.1);
+  const airborne = !onGround;
+  const targetLean = airborne
+    ? THREE.MathUtils.clamp(-velocityY * 0.012, -0.12, 0.11)
+    : direction * -0.045;
+
+  landingBounce = Math.max(0, landingBounce - delta * 4.8);
+  rig.visual.rotation.z = THREE.MathUtils.lerp(rig.visual.rotation.z, targetLean, 0.14);
+  rig.visual.position.y = moving ? stepLift * 0.025 : idle * 0.012;
+  rig.visual.scale.x = 1 + landingBounce * 0.065;
+  rig.visual.scale.y = 1 - landingBounce * 0.075;
+
+  const leftLegTarget = airborne ? -0.32 : step * 0.48;
+  const rightLegTarget = airborne ? 0.38 : -step * 0.48;
+  rig.leftLeg.rotation.z = THREE.MathUtils.lerp(rig.leftLeg.rotation.z, leftLegTarget, 0.22);
+  rig.rightLeg.rotation.z = THREE.MathUtils.lerp(rig.rightLeg.rotation.z, rightLegTarget, 0.22);
+  rig.leftBoot.rotation.z = THREE.MathUtils.lerp(rig.leftBoot.rotation.z, moving ? -step * 0.16 : -0.04, 0.2);
+  rig.rightBoot.rotation.z = THREE.MathUtils.lerp(rig.rightBoot.rotation.z, moving ? step * 0.16 : -0.04, 0.2);
+
+  const armSwing = airborne ? -0.34 : -step * 0.34;
+  rig.frontArm.rotation.z = THREE.MathUtils.lerp(rig.frontArm.rotation.z, armSwing, 0.18);
+  rig.backArm.rotation.z = THREE.MathUtils.lerp(rig.backArm.rotation.z, -armSwing, 0.18);
+  rig.torso.rotation.z = Math.sin(elapsed * 1.7) * 0.008;
+  rig.headRig.position.y = 0.71 + (moving ? stepLift * 0.012 : idle * 0.008);
+  rig.headRig.rotation.z = idle * 0.012 - rig.visual.rotation.z * 0.35;
+  rig.beard.rotation.z = -0.2 - rig.visual.rotation.z * 0.6 + Math.sin(elapsed * 3.2) * 0.015;
+  rig.coatTailLeft.rotation.z = -0.08 - direction * (moving ? 0.08 : 0) + Math.sin(elapsed * 4) * 0.025;
+  rig.coatTailRight.rotation.z = 0.08 - direction * (moving ? 0.11 : 0) - Math.sin(elapsed * 4) * 0.025;
+  rig.guitar.rotation.z = -0.42 - direction * (moving ? 0.025 : 0) + step * 0.018;
 }
 
 function updateNotes(elapsed) {
