@@ -30,6 +30,10 @@ npm run dev
 
 Then open `http://localhost:5173`. Three.js is loaded as an ES module from jsDelivr.
 
+## Play online
+
+The latest version is published at [fixlixpender.github.io/the-last-encore](https://fixlixpender.github.io/the-last-encore/).
+
 ## Direction
 
 This initial prototype establishes the atmosphere and core platforming loop. Next milestones include character animation, a shadow enemy, sound-powered switches, checkpoints, an original soundtrack and a fully designed first level.
