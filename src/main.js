@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 const TOTAL_NOTES = 5;
 const PLAYER = { width: 0.82, height: 2.04, speed: 5.4, jump: 10.8 };
+const SHADOW = { width: 0.88, height: 0.82, speed: 1.35 };
 const PLAYER_Z = 2;
 const PLAYER_START_Y = -0.98;
 const GRAVITY = 18;
@@ -56,6 +57,7 @@ scene.add(stageLight, stageLight.target);
 
 const platforms = [];
 const notes = [];
+const shadows = [];
 const keys = new Set();
 let started = false;
 let completed = false;
@@ -65,6 +67,7 @@ let onGround = false;
 let facing = 1;
 let audio = null;
 let landingBounce = 0;
+let shadowContactCooldown = 0;
 
 function mat(color, roughness = 0.76, metalness = 0.18) {
   return new THREE.MeshStandardMaterial({ color, roughness, metalness });
@@ -333,6 +336,85 @@ function createNotes() {
     .forEach(([x, y], index) => addNote(x, y, index * 1.2));
 }
 
+function createShadowCreature(startX, patrolMin, patrolMax, direction = 1) {
+  const group = new THREE.Group();
+  const visual = new THREE.Group();
+  const shadowMaterial = new THREE.MeshStandardMaterial({
+    color: 0x100d1d,
+    emissive: 0x29104b,
+    emissiveIntensity: 0.8,
+    roughness: 0.88,
+    transparent: true,
+    opacity: 0.95,
+  });
+  const fringeMaterial = new THREE.MeshStandardMaterial({
+    color: 0x241039,
+    emissive: 0x50136f,
+    emissiveIntensity: 0.9,
+    roughness: 0.72,
+  });
+  const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x9ff7ff });
+
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.25, 5, 12), shadowMaterial);
+  body.scale.set(1.08, 0.92, 0.72);
+  body.position.y = 0.12;
+
+  const fringe = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.42, 7), fringeMaterial);
+  fringe.position.y = -0.21;
+  fringe.rotation.y = Math.PI / 7;
+
+  const eyeLeft = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), eyeMaterial);
+  const eyeRight = eyeLeft.clone();
+  eyeLeft.scale.set(1.5, 0.55, 0.45);
+  eyeRight.scale.copy(eyeLeft.scale);
+  eyeLeft.position.set(0.25, 0.2, 0.15);
+  eyeRight.position.set(0.25, 0.2, -0.15);
+
+  const wisps = [];
+  [-0.22, 0, 0.22].forEach((x, index) => {
+    const wisp = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.32, 7), fringeMaterial);
+    wisp.position.set(x, -0.44, (index - 1) * 0.08);
+    wisp.rotation.z = (index - 1) * 0.2;
+    wisps.push(wisp);
+  });
+
+  const groundShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.5, 20),
+    new THREE.MeshBasicMaterial({ color: 0x050208, transparent: true, opacity: 0.62 }),
+  );
+  groundShadow.rotation.x = -Math.PI / 2;
+  groundShadow.position.set(0, -SHADOW.height / 2 + 0.012, -0.3);
+  groundShadow.scale.set(1.35, 0.7, 1);
+
+  visual.add(body, fringe, eyeLeft, eyeRight, ...wisps);
+  visual.traverse((object) => {
+    if (object.isMesh) object.castShadow = true;
+  });
+  const glow = new THREE.PointLight(0x7b2bbd, 2.4, 2.5, 2);
+  glow.position.set(0, 0.1, 0.65);
+  group.add(groundShadow, visual, glow);
+  group.position.set(startX, -2 + SHADOW.height / 2, PLAYER_Z - 0.03);
+  scene.add(group);
+
+  shadows.push({
+    group,
+    visual,
+    eyes: [eyeLeft, eyeRight],
+    wisps,
+    startX,
+    patrolMin,
+    patrolMax,
+    direction,
+    initialDirection: direction,
+    phase: startX * 0.37,
+  });
+}
+
+function createShadows() {
+  createShadowCreature(16.2, 14.2, 19.2, 1);
+  createShadowCreature(26.4, 24.7, 29.5, -1);
+}
+
 function createRain() {
   const positions = new Float32Array(720 * 3);
   for (let i = 0; i < 720; i += 1) {
@@ -353,6 +435,7 @@ function createRain() {
 createWorld();
 const player = createPlayer();
 createNotes();
+createShadows();
 const rain = createRain();
 const clock = new THREE.Clock();
 
@@ -388,6 +471,7 @@ function reset() {
   velocityY = 0;
   onGround = false;
   landingBounce = 0;
+  shadowContactCooldown = 0;
   player.position.set(0, PLAYER_START_Y, PLAYER_Z);
   player.rotation.set(0, 0, 0);
   player.userData.rig.walkTime = 0;
@@ -401,11 +485,15 @@ function reset() {
     note.group.visible = true;
     note.group.position.y = note.originY;
   });
+  shadows.forEach((shadow) => {
+    shadow.group.position.x = shadow.startX;
+    shadow.direction = shadow.initialDirection;
+  });
   stageLight.intensity = 48;
   neon.intensity = 26;
   scene.background.set(0x050711);
   ui.noteCount.textContent = `0 / ${TOTAL_NOTES}`;
-  ui.mission.textContent = "Cross the silent district. Reach the rooftop show.";
+  ui.mission.textContent = "Cross the silent district. Jump the shadows and reach the rooftop show.";
   ui.encore.hidden = true;
   clock.start();
 }
@@ -516,6 +604,55 @@ function updateNotes(elapsed) {
   });
 }
 
+function updateShadows(delta, elapsed) {
+  shadowContactCooldown = Math.max(0, shadowContactCooldown - delta);
+
+  shadows.forEach((shadow) => {
+    if (started && !completed) {
+      shadow.group.position.x += shadow.direction * SHADOW.speed * delta;
+      if (shadow.group.position.x <= shadow.patrolMin) {
+        shadow.group.position.x = shadow.patrolMin;
+        shadow.direction = 1;
+      } else if (shadow.group.position.x >= shadow.patrolMax) {
+        shadow.group.position.x = shadow.patrolMax;
+        shadow.direction = -1;
+      }
+    }
+
+    const pulse = Math.sin(elapsed * 4.2 + shadow.phase);
+    shadow.visual.position.y = Math.abs(pulse) * 0.035;
+    shadow.visual.scale.set(1 + pulse * 0.035, 1 - pulse * 0.025, 1);
+    shadow.visual.rotation.y = shadow.direction === 1 ? 0 : Math.PI;
+    shadow.eyes.forEach((eye, index) => {
+      eye.scale.y = 0.55 + Math.max(0, Math.sin(elapsed * 2.3 + shadow.phase + index * 0.12)) * 0.12;
+    });
+    shadow.wisps.forEach((wisp, index) => {
+      wisp.rotation.z = (index - 1) * 0.2 + Math.sin(elapsed * 5 + shadow.phase + index) * 0.12;
+    });
+
+    if (!started || completed || shadowContactCooldown > 0) return;
+    const playerLeft = player.position.x - PLAYER.width / 2;
+    const playerRight = player.position.x + PLAYER.width / 2;
+    const playerBottom = player.position.y - PLAYER.height / 2;
+    const playerTop = player.position.y + PLAYER.height / 2;
+    const shadowLeft = shadow.group.position.x - SHADOW.width / 2;
+    const shadowRight = shadow.group.position.x + SHADOW.width / 2;
+    const shadowBottom = shadow.group.position.y - SHADOW.height / 2;
+    const shadowTop = shadow.group.position.y + SHADOW.height / 2;
+    const overlaps = playerRight > shadowLeft && playerLeft < shadowRight
+      && playerTop > shadowBottom && playerBottom < shadowTop - 0.06;
+
+    if (overlaps) {
+      const side = player.position.x < shadow.group.position.x ? -1 : 1;
+      player.position.x = shadow.group.position.x + side * (PLAYER.width + SHADOW.width) / 2;
+      velocityY = Math.max(velocityY, 2.4);
+      shadowContactCooldown = 0.65;
+      ui.mission.textContent = "The shadows repel you. Jump over them — for now.";
+      tone(92, 0.16, 0, "sawtooth");
+    }
+  });
+}
+
 function updateRain(delta) {
   const positions = rain.geometry.getAttribute("position");
   for (let i = 0; i < positions.count; i += 1) {
@@ -563,6 +700,7 @@ function animate() {
   const elapsed = clock.elapsedTime;
   updatePlayer(delta);
   updateNotes(elapsed);
+  updateShadows(delta, elapsed);
   updateRain(delta);
   const targetX = THREE.MathUtils.clamp(player.position.x + 2, 0, 31.5);
   camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetX, 0.055);
