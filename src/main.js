@@ -440,8 +440,9 @@ const rain = createRain();
 const clock = new THREE.Clock();
 
 function ensureAudio() {
-  if (!audio) audio = new AudioContext();
-  if (audio.state === "suspended") audio.resume();
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!audio && AudioContextClass) audio = new AudioContextClass();
+  if (audio && audio.state === "suspended") audio.resume();
 }
 
 function tone(frequency, duration = 0.18, delay = 0, type = "triangle") {
