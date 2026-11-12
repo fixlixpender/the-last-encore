@@ -2,6 +2,8 @@ import * as THREE from "three";
 
 const TOTAL_NOTES = 5;
 const MAX_HEALTH = 3;
+const MAX_SOUND_ENERGY = 2;
+const STARTING_SOUND_ENERGY = 1;
 const PLAYER = { width: 0.82, height: 2.04, speed: 5.4, jump: 10.8 };
 const SHADOW = { width: 0.88, height: 0.82, speed: 1.35 };
 const SOUND_WAVE = { range: 3.6, duration: 0.48, cooldown: 1.25, stun: 2.4 };
@@ -17,12 +19,15 @@ const ui = {
   encore: document.querySelector("#encore"),
   gameOver: document.querySelector("#game-over"),
   noteCount: document.querySelector("#note-count"),
+  soundEnergy: document.querySelector("#sound-energy"),
+  energyPips: [...document.querySelectorAll("#sound-energy .energy-pip")],
   health: document.querySelector("#health"),
   healthHearts: [...document.querySelectorAll("#health span")],
   mission: document.querySelector("#mission-text"),
   encoreScore: document.querySelector("#encore-score"),
   gameOverScore: document.querySelector("#game-over-score"),
   soundControl: document.querySelector("#sound-control"),
+  soundControlLabel: document.querySelector("#sound-control-label"),
   start: document.querySelector("#start-button"),
   restart: document.querySelector("#restart-button"),
   retry: document.querySelector("#retry-button"),
@@ -75,6 +80,7 @@ let completed = false;
 let defeated = false;
 let collected = 0;
 let health = MAX_HEALTH;
+let soundEnergy = STARTING_SOUND_ENERGY;
 let invulnerabilityTime = 0;
 let velocityY = 0;
 let onGround = false;
@@ -488,8 +494,25 @@ function removeSoundWave(wave) {
   });
 }
 
+function updateSoundEnergy() {
+  ui.energyPips.forEach((pip, index) => pip.classList.toggle("is-filled", index < soundEnergy));
+  ui.soundEnergy.setAttribute("aria-label", `${soundEnergy} of ${MAX_SOUND_ENERGY} sound charges`);
+  ui.soundControlLabel.textContent = `sound wave · ${soundEnergy}/${MAX_SOUND_ENERGY}`;
+  ui.soundEnergy.classList.toggle("is-empty", soundEnergy === 0);
+}
+
 function emitSoundWave() {
   if (!started || completed || defeated || soundWaveCooldown > 0) return;
+  if (soundEnergy === 0) {
+    ui.mission.textContent = "The guitar is silent. Collect a lost note to recharge the sound wave.";
+    ui.soundEnergy.classList.add("is-denied");
+    setTimeout(() => ui.soundEnergy.classList.remove("is-denied"), 280);
+    tone(78, 0.14, 0, "square");
+    return;
+  }
+
+  soundEnergy -= 1;
+  updateSoundEnergy();
 
   const group = new THREE.Group();
   const rings = [0, 0.12].map((delay, index) => {
@@ -537,7 +560,8 @@ function emitSoundWave() {
 function updateSoundWaves(delta) {
   soundWaveCooldown = Math.max(0, soundWaveCooldown - delta);
   ui.soundControl.classList.toggle("is-cooling", soundWaveCooldown > 0);
-  ui.soundControl.classList.toggle("is-ready", soundWaveCooldown === 0);
+  ui.soundControl.classList.toggle("is-ready", soundWaveCooldown === 0 && soundEnergy > 0);
+  ui.soundControl.classList.toggle("is-empty", soundEnergy === 0);
 
   for (let index = soundWaves.length - 1; index >= 0; index -= 1) {
     const wave = soundWaves[index];
@@ -618,6 +642,7 @@ function reset() {
   defeated = false;
   collected = 0;
   health = MAX_HEALTH;
+  soundEnergy = STARTING_SOUND_ENERGY;
   invulnerabilityTime = 0;
   velocityY = 0;
   onGround = false;
@@ -651,7 +676,8 @@ function reset() {
   scene.background.set(0x050711);
   ui.noteCount.textContent = `0 / ${TOTAL_NOTES}`;
   updateHealth();
-  ui.mission.textContent = "Jump the shadows or press E to break through with sound.";
+  updateSoundEnergy();
+  ui.mission.textContent = "Collect notes to recharge E. Jump the shadows or break through with sound.";
   ui.encore.hidden = true;
   ui.gameOver.hidden = true;
   ui.game.classList.remove("is-hit");
@@ -762,8 +788,15 @@ function updateNotes(elapsed) {
       note.collected = true;
       note.group.visible = false;
       collected += 1;
+      const previousEnergy = soundEnergy;
+      soundEnergy = Math.min(MAX_SOUND_ENERGY, soundEnergy + 1);
       ui.noteCount.textContent = `${collected} / ${TOTAL_NOTES}`;
+      updateSoundEnergy();
       tone(330 * 1.12 ** index, 0.24, 0, "sine");
+      tone(495 * 1.08 ** index, 0.18, 0.055, "triangle");
+      if (soundEnergy > previousEnergy && collected < TOTAL_NOTES) {
+        ui.mission.textContent = "A lost note restored one sound charge.";
+      }
       if (collected === TOTAL_NOTES) ui.mission.textContent = "Every lost note is with you. Take them to the stage.";
     }
   });

@@ -82,7 +82,8 @@ h1 {
 }
 
 .counter,
-.health {
+.health,
+.sound-energy {
   display: flex;
   gap: 10px;
   align-items: center;
@@ -94,6 +95,45 @@ h1 {
   font-family: "Barlow Condensed", sans-serif;
   font-weight: 700;
   letter-spacing: 0.08em;
+}
+
+.sound-energy {
+  gap: 6px;
+  color: #76eaff;
+  padding-inline: 12px;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.energy-icon {
+  margin-right: 2px;
+  font-size: 1.05rem;
+  text-shadow: 0 0 12px rgb(83 232 255 / 70%);
+}
+
+.energy-pip {
+  width: 13px;
+  height: 6px;
+  border: 1px solid rgb(118 234 255 / 42%);
+  border-radius: 999px;
+  background: rgb(55 76 92 / 42%);
+  transition: background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.energy-pip.is-filled {
+  border-color: #76eaff;
+  background: #76eaff;
+  box-shadow: 0 0 10px rgb(83 232 255 / 78%);
+}
+
+.sound-energy.is-empty {
+  color: #68788d;
+  border-color: rgb(104 120 141 / 30%);
+}
+
+.sound-energy.is-denied {
+  border-color: #ff55cf;
+  box-shadow: 0 0 22px rgb(255 85 207 / 32%);
+  transform: translateX(-3px);
 }
 
 .health {
@@ -249,6 +289,12 @@ button:hover {
   opacity: 0.38;
 }
 
+.sound-control.is-empty {
+  color: #66768a;
+  opacity: 0.48;
+  filter: none;
+}
+
 kbd {
   display: inline-grid;
   min-width: 22px;
@@ -279,6 +325,16 @@ kbd {
 @media (max-width: 640px) {
   .hud {
     padding: 18px;
+  }
+
+  .hud-status {
+    gap: 6px;
+  }
+
+  .counter,
+  .health,
+  .sound-energy {
+    padding: 8px 10px;
   }
 
   .mission {
