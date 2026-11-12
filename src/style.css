@@ -75,7 +75,14 @@ h1 {
   text-shadow: 0 0 24px rgb(83 232 255 / 28%);
 }
 
-.counter {
+.hud-status {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.counter,
+.health {
   display: flex;
   gap: 10px;
   align-items: center;
@@ -87,6 +94,24 @@ h1 {
   font-family: "Barlow Condensed", sans-serif;
   font-weight: 700;
   letter-spacing: 0.08em;
+}
+
+.health {
+  gap: 5px;
+  color: #ff55cf;
+  font-size: 1rem;
+  text-shadow: 0 0 12px rgb(255 78 203 / 72%);
+}
+
+.health span {
+  transition: opacity 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.health span.is-lost {
+  color: #506075;
+  opacity: 0.28;
+  text-shadow: none;
+  transform: scale(0.78);
 }
 
 .note-icon {
@@ -117,7 +142,8 @@ h1 {
 }
 
 .intro,
-.encore {
+.encore,
+.game-over {
   position: fixed;
   z-index: 8;
   top: 50%;
@@ -134,7 +160,8 @@ h1 {
 }
 
 .intro::before,
-.encore::before {
+.encore::before,
+.game-over::before {
   position: absolute;
   inset: 8px;
   border: 1px solid rgb(255 255 255 / 5%);
@@ -151,15 +178,29 @@ h1 {
   text-transform: uppercase;
 }
 
-.encore h2 {
+.encore h2,
+.game-over h2 {
   margin: 7px 0 12px;
   font-size: clamp(2.4rem, 7vw, 4.6rem);
   line-height: 0.9;
 }
 
-.encore > p:nth-of-type(2) {
+.encore > p:nth-of-type(2),
+.game-over > p:nth-of-type(2) {
   margin-bottom: 26px;
   color: #aab6c8;
+}
+
+.game-over {
+  border-color: rgb(255 78 203 / 32%);
+}
+
+.game-over .kicker {
+  color: #ff55cf;
+}
+
+#game.is-hit canvas {
+  filter: brightness(1.35) saturate(0.65) sepia(0.18) hue-rotate(285deg);
 }
 
 button {
@@ -254,7 +295,8 @@ kbd {
   }
 
   .intro,
-  .encore {
+  .encore,
+  .game-over {
     padding: 34px 24px;
   }
 }

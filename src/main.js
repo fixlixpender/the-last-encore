@@ -1,9 +1,11 @@
 import * as THREE from "three";
 
 const TOTAL_NOTES = 5;
+const MAX_HEALTH = 3;
 const PLAYER = { width: 0.82, height: 2.04, speed: 5.4, jump: 10.8 };
 const SHADOW = { width: 0.88, height: 0.82, speed: 1.35 };
 const SOUND_WAVE = { range: 4.2, duration: 0.48, cooldown: 1.25, stun: 2.4 };
+const DAMAGE = { invulnerability: 1.35, knockback: 1.55, bounce: 6.2 };
 const PLAYER_Z = 2;
 const PLAYER_START_Y = -0.98;
 const GRAVITY = 18;
@@ -12,12 +14,17 @@ const ui = {
   game: document.querySelector("#game"),
   intro: document.querySelector("#intro"),
   encore: document.querySelector("#encore"),
+  gameOver: document.querySelector("#game-over"),
   noteCount: document.querySelector("#note-count"),
+  health: document.querySelector("#health"),
+  healthHearts: [...document.querySelectorAll("#health span")],
   mission: document.querySelector("#mission-text"),
   encoreScore: document.querySelector("#encore-score"),
+  gameOverScore: document.querySelector("#game-over-score"),
   soundControl: document.querySelector("#sound-control"),
   start: document.querySelector("#start-button"),
   restart: document.querySelector("#restart-button"),
+  retry: document.querySelector("#retry-button"),
 };
 
 const scene = new THREE.Scene();
@@ -64,14 +71,15 @@ const soundWaves = [];
 const keys = new Set();
 let started = false;
 let completed = false;
+let defeated = false;
 let collected = 0;
+let health = MAX_HEALTH;
+let invulnerabilityTime = 0;
 let velocityY = 0;
 let onGround = false;
 let facing = 1;
 let audio = null;
 let landingBounce = 0;
-let shadowContactCooldown = 0;
-let playerPreviousX = 0;
 let soundWaveCooldown = 0;
 
 function mat(color, roughness = 0.76, metalness = 0.18) {
@@ -480,7 +488,7 @@ function removeSoundWave(wave) {
 }
 
 function emitSoundWave() {
-  if (!started || completed || soundWaveCooldown > 0) return;
+  if (!started || completed || defeated || soundWaveCooldown > 0) return;
 
   const group = new THREE.Group();
   const rings = [0, 0.12].map((delay, index) => {
@@ -559,20 +567,67 @@ function solo() {
   });
 }
 
+function updateHealth() {
+  ui.healthHearts.forEach((heart, index) => heart.classList.toggle("is-lost", index >= health));
+  ui.health.setAttribute("aria-label", `${health} ${health === 1 ? "heart" : "hearts"} remaining`);
+}
+
+function defeat() {
+  defeated = true;
+  keys.clear();
+  velocityY = 0;
+  player.userData.rig.visual.visible = true;
+  ui.mission.textContent = "The silence caught the last beat. Try the street again.";
+  ui.gameOverScore.textContent = `You recovered ${collected} of ${TOTAL_NOTES} lost notes before the silence closed in.`;
+  tone(110, 0.38, 0, "sawtooth");
+  tone(73, 0.58, 0.2, "triangle");
+  setTimeout(() => {
+    if (defeated) ui.gameOver.hidden = false;
+  }, 420);
+}
+
+function takeDamage(shadow) {
+  if (invulnerabilityTime > 0 || defeated) return;
+
+  health -= 1;
+  invulnerabilityTime = DAMAGE.invulnerability;
+  updateHealth();
+  const side = Math.sign(player.position.x - shadow.group.position.x) || -shadow.direction;
+  player.position.x = THREE.MathUtils.clamp(
+    shadow.group.position.x + side * DAMAGE.knockback,
+    -1.5,
+    37.2,
+  );
+  velocityY = DAMAGE.bounce;
+  onGround = false;
+  ui.game.classList.add("is-hit");
+  setTimeout(() => ui.game.classList.remove("is-hit"), 180);
+  tone(98, 0.2, 0, "sawtooth");
+  tone(65, 0.28, 0.07, "square");
+
+  if (health === 0) {
+    defeat();
+  } else {
+    ui.mission.textContent = `${health} ${health === 1 ? "beat remains" : "beats remain"}. You are briefly protected — move!`;
+  }
+}
+
 function reset() {
   completed = false;
+  defeated = false;
   collected = 0;
+  health = MAX_HEALTH;
+  invulnerabilityTime = 0;
   velocityY = 0;
   onGround = false;
   landingBounce = 0;
-  shadowContactCooldown = 0;
-  playerPreviousX = 0;
   soundWaveCooldown = 0;
   player.position.set(0, PLAYER_START_Y, PLAYER_Z);
   player.rotation.set(0, 0, 0);
   player.userData.rig.walkTime = 0;
   player.userData.rig.visual.position.set(0, 0, 0);
   player.userData.rig.visual.scale.set(1, 1, 1);
+  player.userData.rig.visual.visible = true;
   const guitar = player.getObjectByName("guitar");
   guitar.position.set(-0.22, -0.01, -0.34);
   guitar.rotation.set(0, 0, 0.38);
@@ -592,8 +647,11 @@ function reset() {
   neon.intensity = 26;
   scene.background.set(0x050711);
   ui.noteCount.textContent = `0 / ${TOTAL_NOTES}`;
+  updateHealth();
   ui.mission.textContent = "Jump the shadows or press E to break through with sound.";
   ui.encore.hidden = true;
+  ui.gameOver.hidden = true;
+  ui.game.classList.remove("is-hit");
   clock.start();
 }
 
@@ -612,8 +670,10 @@ function finish() {
 }
 
 function updatePlayer(delta) {
-  if (!started || completed) return;
-  playerPreviousX = player.position.x;
+  if (!started || completed || defeated) return;
+  invulnerabilityTime = Math.max(0, invulnerabilityTime - delta);
+  player.userData.rig.visual.visible = invulnerabilityTime === 0
+    || Math.floor(invulnerabilityTime * 14) % 2 === 0;
   const direction = Number(keys.has("ArrowRight") || keys.has("KeyD"))
     - Number(keys.has("ArrowLeft") || keys.has("KeyA"));
   if (direction) facing = direction;
@@ -693,7 +753,7 @@ function updateNotes(elapsed) {
     if (note.collected) return;
     note.group.rotation.y = elapsed * 1.7 + note.phase;
     note.group.position.y = note.originY + Math.sin(elapsed * 2.1 + note.phase) * 0.1;
-    if (started && !completed && note.group.position.distanceTo(player.position) < 0.9) {
+    if (started && !completed && !defeated && note.group.position.distanceTo(player.position) < 0.9) {
       note.collected = true;
       note.group.visible = false;
       collected += 1;
@@ -705,14 +765,12 @@ function updateNotes(elapsed) {
 }
 
 function updateShadows(delta, elapsed) {
-  shadowContactCooldown = Math.max(0, shadowContactCooldown - delta);
-
   shadows.forEach((shadow) => {
     shadow.stunTime = Math.max(0, shadow.stunTime - delta);
     shadow.hitFlash = Math.max(0, shadow.hitFlash - delta);
     const stunned = shadow.stunTime > 0;
 
-    if (started && !completed && !stunned) {
+    if (started && !completed && !defeated && !stunned) {
       shadow.group.position.x += shadow.direction * SHADOW.speed * delta;
       if (shadow.group.position.x <= shadow.patrolMin) {
         shadow.group.position.x = shadow.patrolMin;
@@ -743,7 +801,7 @@ function updateShadows(delta, elapsed) {
       wisp.rotation.z = (index - 1) * 0.2 + Math.sin(elapsed * 5 + shadow.phase + index) * 0.12;
     });
 
-    if (!started || completed || stunned) return;
+    if (!started || completed || defeated || stunned) return;
     const playerLeft = player.position.x - PLAYER.width / 2;
     const playerRight = player.position.x + PLAYER.width / 2;
     const playerBottom = player.position.y - PLAYER.height / 2;
@@ -756,16 +814,7 @@ function updateShadows(delta, elapsed) {
       && playerTop > shadowBottom && playerBottom < shadowTop - 0.06;
 
     if (overlaps) {
-      const previousOffset = playerPreviousX - shadow.group.position.x;
-      const side = previousOffset === 0 ? -shadow.direction : Math.sign(previousOffset);
-      player.position.x = shadow.group.position.x
-        + side * ((PLAYER.width + SHADOW.width) / 2 + 0.04);
-
-      if (shadowContactCooldown === 0) {
-        shadowContactCooldown = 0.65;
-        ui.mission.textContent = "The shadows repel you. Jump over them — for now.";
-        tone(92, 0.16, 0, "sawtooth");
-      }
+      takeDamage(shadow);
     }
   });
 }
@@ -805,7 +854,7 @@ function resize() {
 }
 
 function jump() {
-  if (!started || completed || !onGround) return;
+  if (!started || completed || defeated || !onGround) return;
   velocityY = PLAYER.jump;
   onGround = false;
   tone(165, 0.1, 0, "square");
@@ -846,6 +895,7 @@ ui.start.addEventListener("click", () => {
   tone(110, 0.45, 0, "sine");
 });
 ui.restart.addEventListener("click", reset);
+ui.retry.addEventListener("click", reset);
 
 resize();
 animate();

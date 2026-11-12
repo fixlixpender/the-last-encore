@@ -21,9 +21,16 @@
           <span class="eyebrow">A sound-powered journey</span>
           <h1>The Last Encore</h1>
         </div>
-        <div class="counter" aria-live="polite">
-          <span class="note-icon">♪</span>
-          <span id="note-count">0 / 5</span>
+        <div class="hud-status">
+          <div class="health" id="health" aria-label="3 hearts remaining">
+            <span aria-hidden="true">♥</span>
+            <span aria-hidden="true">♥</span>
+            <span aria-hidden="true">♥</span>
+          </div>
+          <div class="counter" aria-live="polite">
+            <span class="note-icon">♪</span>
+            <span id="note-count">0 / 5</span>
+          </div>
         </div>
       </header>
 
@@ -45,6 +52,13 @@
         <button id="restart-button" type="button">Play it again</button>
       </section>
 
+      <section class="game-over" id="game-over" hidden>
+        <p class="kicker">The silence found you</p>
+        <h2>Pick up the beat.</h2>
+        <p id="game-over-score"></p>
+        <button id="retry-button" type="button">Try again</button>
+      </section>
+
       <div class="controls" id="controls">
         <span><kbd>A</kbd><kbd>D</kbd> move</span>
         <span><kbd>W</kbd> / <kbd>Space</kbd> jump</span>
@@ -53,6 +67,6 @@
 
       <div class="vignette" aria-hidden="true"></div>
     </main>
-    <script type="module" src="./src/main.js?v=sound-wave-1"></script>
+    <script type="module" src="./src/main.js?v=damage-system-1"></script>
   </body>
 </html>
