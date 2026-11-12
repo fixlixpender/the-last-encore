@@ -68,6 +68,7 @@ let facing = 1;
 let audio = null;
 let landingBounce = 0;
 let shadowContactCooldown = 0;
+let playerPreviousX = 0;
 
 function mat(color, roughness = 0.76, metalness = 0.18) {
   return new THREE.MeshStandardMaterial({ color, roughness, metalness });
@@ -372,8 +373,8 @@ function createShadowCreature(startX, patrolMin, patrolMax, direction = 1) {
 
   const wisps = [];
   [-0.22, 0, 0.22].forEach((x, index) => {
-    const wisp = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.32, 7), fringeMaterial);
-    wisp.position.set(x, -0.44, (index - 1) * 0.08);
+    const wisp = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.22, 7), fringeMaterial);
+    wisp.position.set(x, -0.32, (index - 1) * 0.08);
     wisp.rotation.z = (index - 1) * 0.2;
     wisps.push(wisp);
   });
@@ -473,6 +474,7 @@ function reset() {
   onGround = false;
   landingBounce = 0;
   shadowContactCooldown = 0;
+  playerPreviousX = 0;
   player.position.set(0, PLAYER_START_Y, PLAYER_Z);
   player.rotation.set(0, 0, 0);
   player.userData.rig.walkTime = 0;
@@ -515,6 +517,7 @@ function finish() {
 
 function updatePlayer(delta) {
   if (!started || completed) return;
+  playerPreviousX = player.position.x;
   const direction = Number(keys.has("ArrowRight") || keys.has("KeyD"))
     - Number(keys.has("ArrowLeft") || keys.has("KeyA"));
   if (direction) facing = direction;
@@ -621,7 +624,7 @@ function updateShadows(delta, elapsed) {
     }
 
     const pulse = Math.sin(elapsed * 4.2 + shadow.phase);
-    shadow.visual.position.y = Math.abs(pulse) * 0.035;
+    shadow.visual.position.y = 0.02 + Math.abs(pulse) * 0.02;
     shadow.visual.scale.set(1 + pulse * 0.035, 1 - pulse * 0.025, 1);
     shadow.visual.rotation.y = shadow.direction === 1 ? 0 : Math.PI;
     shadow.eyes.forEach((eye, index) => {
@@ -631,7 +634,7 @@ function updateShadows(delta, elapsed) {
       wisp.rotation.z = (index - 1) * 0.2 + Math.sin(elapsed * 5 + shadow.phase + index) * 0.12;
     });
 
-    if (!started || completed || shadowContactCooldown > 0) return;
+    if (!started || completed) return;
     const playerLeft = player.position.x - PLAYER.width / 2;
     const playerRight = player.position.x + PLAYER.width / 2;
     const playerBottom = player.position.y - PLAYER.height / 2;
@@ -644,12 +647,16 @@ function updateShadows(delta, elapsed) {
       && playerTop > shadowBottom && playerBottom < shadowTop - 0.06;
 
     if (overlaps) {
-      const side = player.position.x < shadow.group.position.x ? -1 : 1;
-      player.position.x = shadow.group.position.x + side * (PLAYER.width + SHADOW.width) / 2;
-      velocityY = Math.max(velocityY, 2.4);
-      shadowContactCooldown = 0.65;
-      ui.mission.textContent = "The shadows repel you. Jump over them — for now.";
-      tone(92, 0.16, 0, "sawtooth");
+      const previousOffset = playerPreviousX - shadow.group.position.x;
+      const side = previousOffset === 0 ? -shadow.direction : Math.sign(previousOffset);
+      player.position.x = shadow.group.position.x
+        + side * ((PLAYER.width + SHADOW.width) / 2 + 0.04);
+
+      if (shadowContactCooldown === 0) {
+        shadowContactCooldown = 0.65;
+        ui.mission.textContent = "The shadows repel you. Jump over them — for now.";
+        tone(92, 0.16, 0, "sawtooth");
+      }
     }
   });
 }
