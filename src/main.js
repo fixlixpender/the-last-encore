@@ -75,6 +75,7 @@ const platforms = [];
 const notes = [];
 const shadows = [];
 const soundWaves = [];
+const parallaxLayers = [];
 const keys = new Set();
 let started = false;
 let completed = false;
@@ -95,21 +96,104 @@ function mat(color, roughness = 0.76, metalness = 0.18) {
 }
 
 function createCity() {
+  const farLayer = new THREE.Group();
+  const cityLayer = new THREE.Group();
+  const farBuildings = new THREE.MeshBasicMaterial({ color: 0x080d1b });
+  const farWindows = new THREE.MeshBasicMaterial({
+    color: 0x17374d,
+    transparent: true,
+    opacity: 0.52,
+  });
   const buildings = mat(0x0b1020, 0.92, 0.05);
   const windows = new THREE.MeshBasicMaterial({ color: 0x203a51 });
+
+  const moonDisc = new THREE.Mesh(
+    new THREE.CircleGeometry(1.35, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0x17364d,
+      transparent: true,
+      opacity: 0.42,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+  );
+  const moonHalo = new THREE.Mesh(
+    new THREE.CircleGeometry(2.15, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0x15506b,
+      transparent: true,
+      opacity: 0.08,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+  );
+  moonDisc.position.set(13.5, 5.6, -13);
+  moonHalo.position.set(13.5, 5.6, -13.15);
+  farLayer.add(moonHalo, moonDisc);
+
+  for (let i = 0; i < 19; i += 1) {
+    const width = 3 + (i % 4) * 0.72;
+    const height = 4.2 + ((i * 5) % 8) * 0.58;
+    const x = -16 + i * 4.25;
+    const building = new THREE.Mesh(new THREE.BoxGeometry(width, height, 1.2), farBuildings);
+    building.position.set(x, height / 2 - 2.7, -11.2 - (i % 2) * 0.45);
+    farLayer.add(building);
+
+    if (i % 3 === 0) {
+      const beaconMaterial = farWindows.clone();
+      const antenna = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.35, 0.04), farWindows);
+      const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), beaconMaterial);
+      antenna.position.set(x + width * 0.18, height - 2.25, -10.55);
+      beacon.position.set(x + width * 0.18, height - 1.55, -10.55);
+      beacon.userData.phase = i * 0.7;
+      beacon.userData.isBeacon = true;
+      farLayer.add(antenna, beacon);
+    }
+  }
+
   for (let i = 0; i < 22; i += 1) {
     const width = 2.4 + (i % 4) * 0.65;
     const height = 4.5 + ((i * 7) % 9) * 0.72;
     const building = new THREE.Mesh(new THREE.BoxGeometry(width, height, 2.4), buildings);
     building.position.set(-9 + i * 2.7, height / 2 - 2.5, -6 - (i % 3) * 1.4);
-    scene.add(building);
+    cityLayer.add(building);
     for (let row = 0; row < Math.floor(height / 1.25); row += 1) {
       if ((row + i) % 3 === 0) continue;
       const windowMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.32), windows);
       windowMesh.position.set(building.position.x - width * 0.2, -1.4 + row * 1.12, building.position.z + 1.21);
-      scene.add(windowMesh);
+      cityLayer.add(windowMesh);
     }
   }
+
+  const haze = new THREE.Mesh(
+    new THREE.PlaneGeometry(86, 1.8),
+    new THREE.MeshBasicMaterial({
+      color: 0x15314a,
+      transparent: true,
+      opacity: 0.075,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+  );
+  haze.position.set(22, -0.55, -8.8);
+  farLayer.add(haze);
+
+  scene.add(farLayer, cityLayer);
+  parallaxLayers.push(
+    { group: farLayer, factor: 0.72, baseX: 0 },
+    { group: cityLayer, factor: 0.38, baseX: 0 },
+  );
+}
+
+function updateParallax(elapsed) {
+  parallaxLayers.forEach((layer) => {
+    layer.group.position.x = layer.baseX + camera.position.x * layer.factor;
+  });
+
+  parallaxLayers[0]?.group.traverse((object) => {
+    if (!object.userData.isBeacon) return;
+    object.material.opacity = 0.3 + (Math.sin(elapsed * 2.4 + object.userData.phase) + 1) * 0.28;
+  });
 }
 
 function addPlatform(x, y, width, height, color = 0x171d2a) {
@@ -963,6 +1047,7 @@ function animate() {
   const targetX = THREE.MathUtils.clamp(player.position.x + 2, 0, 31.5);
   camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetX, 0.055);
   camera.lookAt(camera.position.x, 0.7, 0);
+  updateParallax(elapsed);
   animateEncore(elapsed);
   renderer.render(scene, camera);
 }
