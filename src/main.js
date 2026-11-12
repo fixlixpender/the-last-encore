@@ -6,7 +6,7 @@ const MAX_SOUND_ENERGY = 2;
 const STARTING_SOUND_ENERGY = 1;
 const PLAYER = { width: 0.82, height: 2.04, speed: 5.4, jump: 10.8 };
 const SHADOW = { width: 0.88, height: 0.82, speed: 1.35 };
-const SOUND_WAVE = { range: 3.6, duration: 0.48, cooldown: 1.25, stun: 2.4 };
+const SOUND_WAVE = { cost: 1, range: 3.6, duration: 0.52, cooldown: 1.1, stun: 2.8 };
 const NOTE_PROXIMITY = { radius: 3.2, collectRadius: 0.9 };
 const DAMAGE = { invulnerability: 1.35, knockback: 1.55, bounce: 6.2 };
 const EXIT_DOOR = { minX: 33, maxX: 35.4 };
@@ -524,7 +524,7 @@ function updateSoundEnergy() {
 
 function emitSoundWave() {
   if (!started || completed || defeated || soundWaveCooldown > 0) return;
-  if (soundEnergy === 0) {
+  if (soundEnergy < SOUND_WAVE.cost) {
     ui.mission.textContent = "The guitar is silent. Collect a lost note to recharge the sound wave.";
     ui.soundEnergy.classList.add("is-denied");
     setTimeout(() => ui.soundEnergy.classList.remove("is-denied"), 280);
@@ -532,7 +532,7 @@ function emitSoundWave() {
     return;
   }
 
-  soundEnergy -= 1;
+  soundEnergy -= SOUND_WAVE.cost;
   updateSoundEnergy();
 
   const group = new THREE.Group();
