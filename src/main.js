@@ -624,6 +624,8 @@ function reset() {
   soundWaveCooldown = 0;
   player.position.set(0, PLAYER_START_Y, PLAYER_Z);
   player.rotation.set(0, 0, 0);
+  camera.position.x = 0;
+  camera.lookAt(0, 0.7, 0);
   player.userData.rig.walkTime = 0;
   player.userData.rig.visual.position.set(0, 0, 0);
   player.userData.rig.visual.scale.set(1, 1, 1);
