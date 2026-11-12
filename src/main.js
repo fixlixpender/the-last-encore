@@ -98,11 +98,11 @@ function mat(color, roughness = 0.76, metalness = 0.18) {
 function createCity() {
   const farLayer = new THREE.Group();
   const cityLayer = new THREE.Group();
-  const farBuildings = new THREE.MeshBasicMaterial({ color: 0x080d1b });
+  const farBuildings = new THREE.MeshBasicMaterial({ color: 0x0d1930 });
   const farWindows = new THREE.MeshBasicMaterial({
-    color: 0x17374d,
+    color: 0x2a5f78,
     transparent: true,
-    opacity: 0.52,
+    opacity: 0.65,
   });
   const buildings = mat(0x0b1020, 0.92, 0.05);
   const windows = new THREE.MeshBasicMaterial({ color: 0x203a51 });
@@ -110,9 +110,9 @@ function createCity() {
   const moonDisc = new THREE.Mesh(
     new THREE.CircleGeometry(1.35, 48),
     new THREE.MeshBasicMaterial({
-      color: 0x17364d,
+      color: 0x3f7690,
       transparent: true,
-      opacity: 0.42,
+      opacity: 0.55,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     }),
@@ -120,15 +120,15 @@ function createCity() {
   const moonHalo = new THREE.Mesh(
     new THREE.CircleGeometry(2.15, 48),
     new THREE.MeshBasicMaterial({
-      color: 0x15506b,
+      color: 0x2a7795,
       transparent: true,
-      opacity: 0.08,
+      opacity: 0.12,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     }),
   );
-  moonDisc.position.set(13.5, 5.6, -13);
-  moonHalo.position.set(13.5, 5.6, -13.15);
+  moonDisc.position.set(5.5, 3.8, -9.7);
+  moonHalo.position.set(5.5, 3.8, -9.82);
   farLayer.add(moonHalo, moonDisc);
 
   for (let i = 0; i < 19; i += 1) {
@@ -138,6 +138,12 @@ function createCity() {
     const building = new THREE.Mesh(new THREE.BoxGeometry(width, height, 1.2), farBuildings);
     building.position.set(x, height / 2 - 2.7, -11.2 - (i % 2) * 0.45);
     farLayer.add(building);
+
+    if (i % 2 === 0) {
+      const roofGlow = new THREE.Mesh(new THREE.BoxGeometry(width * 0.62, 0.035, 0.06), farWindows);
+      roofGlow.position.set(x, height - 2.68, building.position.z + 0.62);
+      farLayer.add(roofGlow);
+    }
 
     if (i % 3 === 0) {
       const beaconMaterial = farWindows.clone();
