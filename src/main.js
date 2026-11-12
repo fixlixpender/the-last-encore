@@ -7,6 +7,7 @@ const STARTING_SOUND_ENERGY = 1;
 const PLAYER = { width: 0.82, height: 2.04, speed: 5.4, jump: 10.8 };
 const SHADOW = { width: 0.88, height: 0.82, speed: 1.35 };
 const SOUND_WAVE = { range: 3.6, duration: 0.48, cooldown: 1.25, stun: 2.4 };
+const NOTE_PROXIMITY = { radius: 3.2, collectRadius: 0.9 };
 const DAMAGE = { invulnerability: 1.35, knockback: 1.55, bounce: 6.2 };
 const EXIT_DOOR = { minX: 33, maxX: 35.4 };
 const PLAYER_Z = 2;
@@ -340,15 +341,35 @@ function addNote(x, y, phase) {
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), noteMaterial);
   const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.72, 10), noteMaterial);
   const flag = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.035, 8, 18, Math.PI * 1.05), noteMaterial);
+  const haloMaterial = new THREE.MeshBasicMaterial({
+    color: 0xff55cf,
+    transparent: true,
+    opacity: 0.12,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.022, 8, 48), haloMaterial);
+  const glow = new THREE.PointLight(0xff3fbf, 2.4, 2.2, 2);
   head.scale.set(1.25, 0.82, 0.6);
   head.rotation.z = -0.35;
   stem.position.set(0.22, 0.31, 0);
   flag.position.set(0.06, 0.65, 0);
   flag.rotation.z = -0.4;
-  group.add(head, stem, flag);
+  halo.position.y = 0.24;
+  glow.position.set(0, 0.24, 0.35);
+  group.add(head, stem, flag, halo, glow);
   group.position.set(x, y, PLAYER_Z + 0.1);
   scene.add(group);
-  notes.push({ group, phase, originY: y, collected: false });
+  notes.push({
+    group,
+    phase,
+    originY: y,
+    collected: false,
+    nearCuePlayed: false,
+    material: noteMaterial,
+    halo,
+    glow,
+  });
 }
 
 function createNotes() {
@@ -471,7 +492,7 @@ function ensureAudio() {
   if (audio && audio.state === "suspended") audio.resume();
 }
 
-function tone(frequency, duration = 0.18, delay = 0, type = "triangle") {
+function tone(frequency, duration = 0.18, delay = 0, type = "triangle", volume = 0.12) {
   if (!audio) return;
   const oscillator = audio.createOscillator();
   const gain = audio.createGain();
@@ -479,7 +500,7 @@ function tone(frequency, duration = 0.18, delay = 0, type = "triangle") {
   oscillator.type = type;
   oscillator.frequency.setValueAtTime(frequency, start);
   gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.exponentialRampToValueAtTime(0.12, start + 0.015);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.015);
   gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
   oscillator.connect(gain).connect(audio.destination);
   oscillator.start(start);
@@ -663,6 +684,13 @@ function reset() {
     note.collected = false;
     note.group.visible = true;
     note.group.position.y = note.originY;
+    note.group.scale.setScalar(1);
+    note.nearCuePlayed = false;
+    note.material.emissiveIntensity = 2.2;
+    note.halo.material.opacity = 0.12;
+    note.halo.scale.setScalar(1);
+    note.glow.intensity = 2.4;
+    note.glow.distance = 2.2;
   });
   shadows.forEach((shadow) => {
     shadow.group.position.x = shadow.startX;
@@ -782,9 +810,34 @@ function animateCharacter(delta, elapsed, direction) {
 function updateNotes(elapsed) {
   notes.forEach((note, index) => {
     if (note.collected) return;
-    note.group.rotation.y = elapsed * 1.7 + note.phase;
-    note.group.position.y = note.originY + Math.sin(elapsed * 2.1 + note.phase) * 0.1;
-    if (started && !completed && !defeated && note.group.position.distanceTo(player.position) < 0.9) {
+    const distance = note.group.position.distanceTo(player.position);
+    const proximity = started && !completed && !defeated
+      ? THREE.MathUtils.clamp(
+        (NOTE_PROXIMITY.radius - distance) / (NOTE_PROXIMITY.radius - NOTE_PROXIMITY.collectRadius),
+        0,
+        1,
+      )
+      : 0;
+    const pulse = (Math.sin(elapsed * (2.8 + proximity * 2.4) + note.phase) + 1) / 2;
+    const response = proximity * (0.72 + pulse * 0.28);
+
+    note.group.rotation.y = elapsed * (1.7 + proximity * 1.15) + note.phase;
+    note.group.position.y = note.originY + Math.sin(elapsed * 2.1 + note.phase) * (0.1 + proximity * 0.05);
+    note.group.scale.setScalar(1 + response * 0.18);
+    note.material.emissiveIntensity = 2.2 + response * 3.6;
+    note.halo.material.opacity = 0.12 + response * 0.48;
+    note.halo.scale.setScalar(1 + response * 0.42);
+    note.halo.rotation.z = -elapsed * (0.55 + proximity * 0.8);
+    note.glow.intensity = 2.4 + response * 8.5;
+    note.glow.distance = 2.2 + response * 2.3;
+
+    if (proximity > 0.28 && !note.nearCuePlayed) {
+      note.nearCuePlayed = true;
+      tone(220 * 1.075 ** index, 0.16, 0, "sine", 0.035);
+      tone(330 * 1.055 ** index, 0.12, 0.045, "triangle", 0.025);
+    }
+
+    if (started && !completed && !defeated && distance < NOTE_PROXIMITY.collectRadius) {
       note.collected = true;
       note.group.visible = false;
       collected += 1;
