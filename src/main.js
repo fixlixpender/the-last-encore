@@ -76,7 +76,7 @@ const notes = [];
 const shadows = [];
 const soundWaves = [];
 const parallaxLayers = [];
-const atmosphere = { lights: [], fog: [], motes: null };
+const atmosphere = { lights: [], fog: [], motes: null, windows: [] };
 const keys = new Set();
 let started = false;
 let completed = false;
@@ -107,6 +107,16 @@ function createCity() {
   });
   const buildings = mat(0x0b1020, 0.92, 0.05);
   const windows = new THREE.MeshBasicMaterial({ color: 0x203a51 });
+  const occupiedWindowColors = [
+    0xffbd72,
+    0xffd59a,
+    0xffc783,
+    0xffdfa8,
+    0xf2b978,
+    0xffcf91,
+    0x72d7e7,
+    0xd783bd,
+  ];
 
   const moonDisc = new THREE.Mesh(
     new THREE.CircleGeometry(1.35, 48),
@@ -166,9 +176,26 @@ function createCity() {
     cityLayer.add(building);
     for (let row = 0; row < Math.floor(height / 1.25); row += 1) {
       if ((row + i) % 3 === 0) continue;
-      const windowMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.32), windows);
+      const canChange = (i * 7 + row * 5) % 11 < 4;
+      const windowMaterial = canChange ? windows.clone() : windows;
+      const windowMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.32), windowMaterial);
       windowMesh.position.set(building.position.x - width * 0.2, -1.4 + row * 1.12, building.position.z + 1.21);
       cityLayer.add(windowMesh);
+
+      if (canChange) {
+        const startsLit = (i * 3 + row * 7) % 4 === 0;
+        const offColor = new THREE.Color(0x203a51);
+        const onColor = new THREE.Color(occupiedWindowColors[(i * 3 + row) % occupiedWindowColors.length]);
+        windowMaterial.color.copy(startsLit ? onColor : offColor);
+        atmosphere.windows.push({
+          material: windowMaterial,
+          offColor,
+          onColor,
+          level: startsLit ? 1 : 0,
+          target: startsLit ? 1 : 0,
+          time: 2.5 + ((i + row * 2) % 7) * 0.85 + Math.random() * 2.5,
+        });
+      }
     }
   }
 
@@ -1128,6 +1155,19 @@ function updateAtmosphere(delta, elapsed) {
   atmosphere.fog.forEach((fog) => {
     fog.position.x = fog.userData.baseX + Math.sin(elapsed * 0.18 + fog.userData.phase) * 0.7;
     fog.material.opacity = 0.05 + (Math.sin(elapsed * 0.32 + fog.userData.phase) + 1) * 0.015;
+  });
+
+  atmosphere.windows.forEach((windowLight) => {
+    windowLight.time -= delta;
+    if (windowLight.time <= 0) {
+      windowLight.target = windowLight.target === 1 ? 0 : 1;
+      windowLight.time = windowLight.target === 1
+        ? 5 + Math.random() * 9
+        : 4 + Math.random() * 12;
+    }
+    const transition = 1 - Math.exp(-delta * (windowLight.target === 1 ? 1.8 : 1.15));
+    windowLight.level = THREE.MathUtils.lerp(windowLight.level, windowLight.target, transition);
+    windowLight.material.color.copy(windowLight.offColor).lerp(windowLight.onColor, windowLight.level * 0.9);
   });
 
   const positions = atmosphere.motes.geometry.getAttribute("position");
