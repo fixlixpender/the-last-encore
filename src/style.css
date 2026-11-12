@@ -195,6 +195,19 @@ button:hover {
   pointer-events: none;
 }
 
+.sound-control {
+  transition: color 160ms ease, opacity 160ms ease, filter 160ms ease;
+}
+
+.sound-control.is-ready {
+  color: #76eaff;
+  filter: drop-shadow(0 0 6px rgb(83 232 255 / 38%));
+}
+
+.sound-control.is-cooling {
+  opacity: 0.38;
+}
+
 kbd {
   display: inline-grid;
   min-width: 22px;

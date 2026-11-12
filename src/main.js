@@ -3,6 +3,7 @@ import * as THREE from "three";
 const TOTAL_NOTES = 5;
 const PLAYER = { width: 0.82, height: 2.04, speed: 5.4, jump: 10.8 };
 const SHADOW = { width: 0.88, height: 0.82, speed: 1.35 };
+const SOUND_WAVE = { range: 4.2, duration: 0.48, cooldown: 1.25, stun: 2.4 };
 const PLAYER_Z = 2;
 const PLAYER_START_Y = -0.98;
 const GRAVITY = 18;
@@ -14,6 +15,7 @@ const ui = {
   noteCount: document.querySelector("#note-count"),
   mission: document.querySelector("#mission-text"),
   encoreScore: document.querySelector("#encore-score"),
+  soundControl: document.querySelector("#sound-control"),
   start: document.querySelector("#start-button"),
   restart: document.querySelector("#restart-button"),
 };
@@ -58,6 +60,7 @@ scene.add(stageLight, stageLight.target);
 const platforms = [];
 const notes = [];
 const shadows = [];
+const soundWaves = [];
 const keys = new Set();
 let started = false;
 let completed = false;
@@ -69,6 +72,7 @@ let audio = null;
 let landingBounce = 0;
 let shadowContactCooldown = 0;
 let playerPreviousX = 0;
+let soundWaveCooldown = 0;
 
 function mat(color, roughness = 0.76, metalness = 0.18) {
   return new THREE.MeshStandardMaterial({ color, roughness, metalness });
@@ -401,6 +405,10 @@ function createShadowCreature(startX, patrolMin, patrolMax, direction = 1) {
     group,
     visual,
     eyes: [eyeLeft, eyeRight],
+    shadowMaterial,
+    fringeMaterial,
+    eyeMaterial,
+    glow,
     wisps,
     startX,
     patrolMin,
@@ -408,6 +416,8 @@ function createShadowCreature(startX, patrolMin, patrolMax, direction = 1) {
     direction,
     initialDirection: direction,
     phase: startX * 0.37,
+    stunTime: 0,
+    hitFlash: 0,
   });
 }
 
@@ -461,6 +471,88 @@ function tone(frequency, duration = 0.18, delay = 0, type = "triangle") {
   oscillator.stop(start + duration + 0.02);
 }
 
+function removeSoundWave(wave) {
+  scene.remove(wave.group);
+  wave.rings.forEach((ring) => {
+    ring.geometry.dispose();
+    ring.material.dispose();
+  });
+}
+
+function emitSoundWave() {
+  if (!started || completed || soundWaveCooldown > 0) return;
+
+  const group = new THREE.Group();
+  const rings = [0, 0.12].map((delay, index) => {
+    const material = new THREE.MeshBasicMaterial({
+      color: index === 0 ? 0x65efff : 0xff55cf,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1, index === 0 ? 0.045 : 0.028, 8, 72), material);
+    ring.userData.delay = delay;
+    ring.renderOrder = 8;
+    group.add(ring);
+    return ring;
+  });
+  group.position.set(player.position.x, player.position.y, PLAYER_Z + 0.7);
+  scene.add(group);
+  soundWaves.push({ group, rings, age: 0 });
+  soundWaveCooldown = SOUND_WAVE.cooldown;
+
+  let hits = 0;
+  shadows.forEach((shadow) => {
+    const dx = shadow.group.position.x - player.position.x;
+    const dy = shadow.group.position.y - player.position.y;
+    if (Math.hypot(dx, dy) > SOUND_WAVE.range) return;
+    shadow.stunTime = SOUND_WAVE.stun;
+    shadow.hitFlash = 0.35;
+    hits += 1;
+  });
+
+  tone(147, 0.34, 0, "sawtooth");
+  tone(294, 0.3, 0.035, "triangle");
+  if (hits > 0) {
+    tone(523, 0.18, 0.08, "square");
+    ui.mission.textContent = hits === 1
+      ? "The sound wave stunned a shadow. Move while the path is open."
+      : `The sound wave stunned ${hits} shadows. Move while the path is open.`;
+  } else {
+    ui.mission.textContent = "The sound wave fades into the empty street.";
+  }
+}
+
+function updateSoundWaves(delta) {
+  soundWaveCooldown = Math.max(0, soundWaveCooldown - delta);
+  ui.soundControl.classList.toggle("is-cooling", soundWaveCooldown > 0);
+  ui.soundControl.classList.toggle("is-ready", soundWaveCooldown === 0);
+
+  for (let index = soundWaves.length - 1; index >= 0; index -= 1) {
+    const wave = soundWaves[index];
+    wave.age += delta;
+    wave.rings.forEach((ring) => {
+      const progress = THREE.MathUtils.clamp(
+        (wave.age - ring.userData.delay) / (SOUND_WAVE.duration - ring.userData.delay),
+        0,
+        1,
+      );
+      const eased = 1 - (1 - progress) ** 2;
+      const scale = THREE.MathUtils.lerp(0.12, SOUND_WAVE.range, eased);
+      ring.visible = wave.age >= ring.userData.delay;
+      ring.scale.setScalar(scale);
+      ring.material.opacity = (1 - progress) * 0.82;
+    });
+
+    if (wave.age >= SOUND_WAVE.duration) {
+      removeSoundWave(wave);
+      soundWaves.splice(index, 1);
+    }
+  }
+}
+
 function solo() {
   [196, 247, 294, 392, 494, 587, 784].forEach((frequency, index) => {
     tone(frequency, 0.32, index * 0.16, index % 3 === 0 ? "sawtooth" : "triangle");
@@ -475,6 +567,7 @@ function reset() {
   landingBounce = 0;
   shadowContactCooldown = 0;
   playerPreviousX = 0;
+  soundWaveCooldown = 0;
   player.position.set(0, PLAYER_START_Y, PLAYER_Z);
   player.rotation.set(0, 0, 0);
   player.userData.rig.walkTime = 0;
@@ -491,12 +584,15 @@ function reset() {
   shadows.forEach((shadow) => {
     shadow.group.position.x = shadow.startX;
     shadow.direction = shadow.initialDirection;
+    shadow.stunTime = 0;
+    shadow.hitFlash = 0;
   });
+  soundWaves.splice(0).forEach(removeSoundWave);
   stageLight.intensity = 48;
   neon.intensity = 26;
   scene.background.set(0x050711);
   ui.noteCount.textContent = `0 / ${TOTAL_NOTES}`;
-  ui.mission.textContent = "Cross the silent district. Jump the shadows and reach the rooftop show.";
+  ui.mission.textContent = "Jump the shadows or press E to break through with sound.";
   ui.encore.hidden = true;
   clock.start();
 }
@@ -612,7 +708,11 @@ function updateShadows(delta, elapsed) {
   shadowContactCooldown = Math.max(0, shadowContactCooldown - delta);
 
   shadows.forEach((shadow) => {
-    if (started && !completed) {
+    shadow.stunTime = Math.max(0, shadow.stunTime - delta);
+    shadow.hitFlash = Math.max(0, shadow.hitFlash - delta);
+    const stunned = shadow.stunTime > 0;
+
+    if (started && !completed && !stunned) {
       shadow.group.position.x += shadow.direction * SHADOW.speed * delta;
       if (shadow.group.position.x <= shadow.patrolMin) {
         shadow.group.position.x = shadow.patrolMin;
@@ -624,9 +724,18 @@ function updateShadows(delta, elapsed) {
     }
 
     const pulse = Math.sin(elapsed * 4.2 + shadow.phase);
-    shadow.visual.position.y = 0.02 + Math.abs(pulse) * 0.02;
-    shadow.visual.scale.set(1 + pulse * 0.035, 1 - pulse * 0.025, 1);
+    shadow.visual.position.y = stunned ? -0.14 : 0.02 + Math.abs(pulse) * 0.02;
+    shadow.visual.scale.set(
+      stunned ? 1.18 + pulse * 0.025 : 1 + pulse * 0.035,
+      stunned ? 0.62 : 1 - pulse * 0.025,
+      1,
+    );
     shadow.visual.rotation.y = shadow.direction === 1 ? 0 : Math.PI;
+    shadow.shadowMaterial.emissiveIntensity = stunned ? 2.8 + shadow.hitFlash * 8 : 0.8;
+    shadow.fringeMaterial.emissiveIntensity = stunned ? 3.4 + shadow.hitFlash * 8 : 0.9;
+    shadow.eyeMaterial.color.set(stunned ? 0xff71da : 0x9ff7ff);
+    shadow.glow.color.set(stunned ? 0x42eaff : 0x7b2bbd);
+    shadow.glow.intensity = stunned ? 6 + shadow.hitFlash * 12 : 2.4;
     shadow.eyes.forEach((eye, index) => {
       eye.scale.y = 0.55 + Math.max(0, Math.sin(elapsed * 2.3 + shadow.phase + index * 0.12)) * 0.12;
     });
@@ -634,7 +743,7 @@ function updateShadows(delta, elapsed) {
       wisp.rotation.z = (index - 1) * 0.2 + Math.sin(elapsed * 5 + shadow.phase + index) * 0.12;
     });
 
-    if (!started || completed) return;
+    if (!started || completed || stunned) return;
     const playerLeft = player.position.x - PLAYER.width / 2;
     const playerRight = player.position.x + PLAYER.width / 2;
     const playerBottom = player.position.y - PLAYER.height / 2;
@@ -709,6 +818,7 @@ function animate() {
   updatePlayer(delta);
   updateNotes(elapsed);
   updateShadows(delta, elapsed);
+  updateSoundWaves(delta);
   updateRain(delta);
   const targetX = THREE.MathUtils.clamp(player.position.x + 2, 0, 31.5);
   camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetX, 0.055);
@@ -722,6 +832,7 @@ addEventListener("keydown", (event) => {
   keys.add(event.code);
   if (["ArrowLeft", "ArrowRight", "ArrowUp", "Space"].includes(event.code)) event.preventDefault();
   if (["Space", "KeyW", "ArrowUp"].includes(event.code) && !event.repeat) jump();
+  if (event.code === "KeyE" && !event.repeat) emitSoundWave();
 });
 addEventListener("keyup", (event) => keys.delete(event.code));
 addEventListener("blur", () => keys.clear());
