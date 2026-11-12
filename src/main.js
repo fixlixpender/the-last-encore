@@ -76,6 +76,7 @@ const notes = [];
 const shadows = [];
 const soundWaves = [];
 const parallaxLayers = [];
+const atmosphere = { lights: [], fog: [], motes: null };
 const keys = new Set();
 let started = false;
 let completed = false;
@@ -252,6 +253,87 @@ function createStage() {
   scene.add(sign);
 }
 
+function createAtmosphere() {
+  const lampBody = mat(0x101725, 0.72, 0.34);
+  const lamps = [
+    { x: 13.2, color: 0x3de8ff, intensity: 11, phase: 0.4 },
+    { x: 22.4, color: 0xff4ecb, intensity: 9, phase: 1.8 },
+    { x: 29.8, color: 0x56dfff, intensity: 10, phase: 3.1 },
+  ];
+
+  lamps.forEach(({ x, color, intensity, phase }) => {
+    const fixture = new THREE.Mesh(
+      new THREE.BoxGeometry(0.34, 0.12, 0.22),
+      new THREE.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 2.5,
+        roughness: 0.34,
+      }),
+    );
+    const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.75, 0.08), lampBody);
+    fixture.position.set(x, 3.15, 0.75);
+    bracket.position.set(x, 3.48, 0.62);
+    const light = new THREE.PointLight(color, intensity, 7, 2);
+    light.position.set(x, 2.8, 2.4);
+    scene.add(bracket, fixture, light);
+    atmosphere.lights.push({ light, base: intensity, phase });
+  });
+
+  atmosphere.lights.push({ light: neon, base: 26, phase: 0 });
+
+  const fogCanvas = document.createElement("canvas");
+  fogCanvas.width = 256;
+  fogCanvas.height = 128;
+  const fogContext = fogCanvas.getContext("2d");
+  const fogGradient = fogContext.createRadialGradient(128, 64, 4, 128, 64, 120);
+  fogGradient.addColorStop(0, "rgba(126, 205, 224, 0.65)");
+  fogGradient.addColorStop(0.5, "rgba(74, 126, 151, 0.22)");
+  fogGradient.addColorStop(1, "rgba(21, 42, 63, 0)");
+  fogContext.fillStyle = fogGradient;
+  fogContext.fillRect(0, 0, 256, 128);
+  const fogTexture = new THREE.CanvasTexture(fogCanvas);
+
+  [3, 12, 21, 30, 39].forEach((x, index) => {
+    const material = new THREE.SpriteMaterial({
+      map: fogTexture,
+      color: index % 2 === 0 ? 0x7fcadd : 0x9a7ac0,
+      transparent: true,
+      opacity: 0.065,
+      depthWrite: false,
+    });
+    const fog = new THREE.Sprite(material);
+    fog.position.set(x, -0.55 + (index % 2) * 0.38, -2.8 - (index % 3) * 0.4);
+    fog.scale.set(10 + (index % 2) * 2, 2.4, 1);
+    fog.userData.baseX = x;
+    fog.userData.phase = index * 1.3;
+    scene.add(fog);
+    atmosphere.fog.push(fog);
+  });
+
+  const moteCount = 140;
+  const motePositions = new Float32Array(moteCount * 3);
+  for (let i = 0; i < moteCount; i += 1) {
+    motePositions[i * 3] = -8 + Math.random() * 58;
+    motePositions[i * 3 + 1] = -1.8 + Math.random() * 8.5;
+    motePositions[i * 3 + 2] = -1 + Math.random() * 5;
+  }
+  const moteGeometry = new THREE.BufferGeometry();
+  moteGeometry.setAttribute("position", new THREE.BufferAttribute(motePositions, 3));
+  atmosphere.motes = new THREE.Points(
+    moteGeometry,
+    new THREE.PointsMaterial({
+      color: 0x8fe7f4,
+      size: 0.035,
+      transparent: true,
+      opacity: 0.32,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+  );
+  scene.add(atmosphere.motes);
+}
+
 function createWorld() {
   createCity();
   addPlatform(15, -2.65, 44, 1.3, 0x121722);
@@ -262,6 +344,7 @@ function createWorld() {
   addPlatform(28.2, 0.75, 3, 0.48);
   addPlatform(34.2, -2.275, 7.4, 0.55, 0x21162a);
   createStage();
+  createAtmosphere();
 }
 
 function createGuitar() {
@@ -553,17 +636,25 @@ function createShadows() {
 }
 
 function createRain() {
-  const positions = new Float32Array(720 * 3);
-  for (let i = 0; i < 720; i += 1) {
-    positions[i * 3] = -15 + Math.random() * 70;
-    positions[i * 3 + 1] = -2 + Math.random() * 16;
-    positions[i * 3 + 2] = -4 + Math.random() * 8;
+  const dropCount = 360;
+  const positions = new Float32Array(dropCount * 2 * 3);
+  for (let i = 0; i < dropCount; i += 1) {
+    const x = -15 + Math.random() * 70;
+    const y = -2 + Math.random() * 16;
+    const z = -4 + Math.random() * 8;
+    const offset = i * 6;
+    positions[offset] = x;
+    positions[offset + 1] = y;
+    positions[offset + 2] = z;
+    positions[offset + 3] = x - 0.07;
+    positions[offset + 4] = y - 0.42;
+    positions[offset + 5] = z;
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  const rain = new THREE.Points(
+  const rain = new THREE.LineSegments(
     geometry,
-    new THREE.PointsMaterial({ color: 0x8ac9dd, size: 0.035, transparent: true, opacity: 0.55 }),
+    new THREE.LineBasicMaterial({ color: 0x8ac9dd, transparent: true, opacity: 0.24 }),
   );
   scene.add(rain);
   return rain;
@@ -1002,12 +1093,38 @@ function updateShadows(delta, elapsed) {
 
 function updateRain(delta) {
   const positions = rain.geometry.getAttribute("position");
-  for (let i = 0; i < positions.count; i += 1) {
-    let x = positions.getX(i) - delta * 0.8;
-    let y = positions.getY(i) - delta * (7 + (i % 5));
+  for (let i = 0; i < positions.count; i += 2) {
+    const dropIndex = i / 2;
+    let x = positions.getX(i) - delta * 1.15;
+    let y = positions.getY(i) - delta * (7 + (dropIndex % 5));
+    const z = positions.getZ(i);
     if (y < -3) {
       x = camera.position.x - 12 + Math.random() * 30;
       y = 11 + Math.random() * 4;
+    }
+    positions.setXYZ(i, x, y, z);
+    positions.setXYZ(i + 1, x - 0.07, y - 0.42, z);
+  }
+  positions.needsUpdate = true;
+}
+
+function updateAtmosphere(delta, elapsed) {
+  atmosphere.lights.forEach(({ light, base, phase }) => {
+    light.intensity = base * (0.94 + Math.sin(elapsed * 1.7 + phase) * 0.06);
+  });
+
+  atmosphere.fog.forEach((fog) => {
+    fog.position.x = fog.userData.baseX + Math.sin(elapsed * 0.18 + fog.userData.phase) * 0.7;
+    fog.material.opacity = 0.05 + (Math.sin(elapsed * 0.32 + fog.userData.phase) + 1) * 0.015;
+  });
+
+  const positions = atmosphere.motes.geometry.getAttribute("position");
+  for (let i = 0; i < positions.count; i += 1) {
+    let x = positions.getX(i) + delta * (0.08 + (i % 3) * 0.025);
+    let y = positions.getY(i) + delta * (0.045 + (i % 4) * 0.018);
+    if (x < camera.position.x - 12 || x > camera.position.x + 18 || y > 7) {
+      x = camera.position.x - 12 + Math.random() * 30;
+      y = -2 + Math.random() * 3;
     }
     positions.setXY(i, x, y);
   }
@@ -1054,6 +1171,7 @@ function animate() {
   camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetX, 0.055);
   camera.lookAt(camera.position.x, 0.7, 0);
   updateParallax(elapsed);
+  updateAtmosphere(delta, elapsed);
   animateEncore(elapsed);
   renderer.render(scene, camera);
 }
