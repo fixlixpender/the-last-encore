@@ -6,6 +6,7 @@ const PLAYER = { width: 0.82, height: 2.04, speed: 5.4, jump: 10.8 };
 const SHADOW = { width: 0.88, height: 0.82, speed: 1.35 };
 const SOUND_WAVE = { range: 3.6, duration: 0.48, cooldown: 1.25, stun: 2.4 };
 const DAMAGE = { invulnerability: 1.35, knockback: 1.55, bounce: 6.2 };
+const EXIT_DOOR = { minX: 33, maxX: 35.4 };
 const PLAYER_Z = 2;
 const PLAYER_START_Y = -0.98;
 const GRAVITY = 18;
@@ -710,7 +711,9 @@ function updatePlayer(delta) {
   }
   player.position.z = PLAYER_Z;
   animateCharacter(delta, clock.elapsedTime, direction);
-  if (player.position.x > 33.1 && player.position.y > -1.8) finish();
+  const insideExitDoor = player.position.x >= EXIT_DOOR.minX
+    && player.position.x <= EXIT_DOOR.maxX;
+  if (insideExitDoor && onGround) finish();
 }
 
 function animateCharacter(delta, elapsed, direction) {
