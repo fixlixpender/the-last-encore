@@ -254,7 +254,7 @@ function createStage() {
 }
 
 function createAtmosphere() {
-  const lampBody = mat(0x101725, 0.72, 0.34);
+  const lampBody = mat(0x28354a, 0.72, 0.34);
   const lamps = [
     { x: 13.2, color: 0x3de8ff, intensity: 11, phase: 0.4 },
     { x: 22.4, color: 0xff4ecb, intensity: 9, phase: 1.8 },
@@ -267,7 +267,7 @@ function createAtmosphere() {
       new THREE.MeshStandardMaterial({
         color,
         emissive: color,
-        emissiveIntensity: 2.5,
+        emissiveIntensity: 1.65,
         roughness: 0.34,
       }),
     );
@@ -276,7 +276,19 @@ function createAtmosphere() {
     bracket.position.set(x, 3.48, 0.62);
     const light = new THREE.PointLight(color, intensity, 7, 2);
     light.position.set(x, 2.8, 2.4);
-    scene.add(bracket, fixture, light);
+    const beam = new THREE.Mesh(
+      new THREE.ConeGeometry(1.35, 3.2, 24, 1, true),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.032,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    beam.position.set(x, 1.52, 0.25);
+    scene.add(bracket, fixture, beam, light);
     atmosphere.lights.push({ light, base: intensity, phase });
   });
 
@@ -636,7 +648,7 @@ function createShadows() {
 }
 
 function createRain() {
-  const dropCount = 360;
+  const dropCount = 280;
   const positions = new Float32Array(dropCount * 2 * 3);
   for (let i = 0; i < dropCount; i += 1) {
     const x = -15 + Math.random() * 70;
@@ -647,14 +659,14 @@ function createRain() {
     positions[offset + 1] = y;
     positions[offset + 2] = z;
     positions[offset + 3] = x - 0.07;
-    positions[offset + 4] = y - 0.42;
+    positions[offset + 4] = y - 0.32;
     positions[offset + 5] = z;
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   const rain = new THREE.LineSegments(
     geometry,
-    new THREE.LineBasicMaterial({ color: 0x8ac9dd, transparent: true, opacity: 0.24 }),
+    new THREE.LineBasicMaterial({ color: 0x8ac9dd, transparent: true, opacity: 0.16 }),
   );
   scene.add(rain);
   return rain;
@@ -1103,7 +1115,7 @@ function updateRain(delta) {
       y = 11 + Math.random() * 4;
     }
     positions.setXYZ(i, x, y, z);
-    positions.setXYZ(i + 1, x - 0.07, y - 0.42, z);
+    positions.setXYZ(i + 1, x - 0.055, y - 0.32, z);
   }
   positions.needsUpdate = true;
 }
