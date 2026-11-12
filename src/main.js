@@ -127,8 +127,8 @@ function createCity() {
       depthWrite: false,
     }),
   );
-  moonDisc.position.set(5.5, 3.8, -9.7);
-  moonHalo.position.set(5.5, 3.8, -9.82);
+  moonDisc.position.set(5.5, 3, -9.7);
+  moonHalo.position.set(5.5, 3, -9.82);
   farLayer.add(moonHalo, moonDisc);
 
   for (let i = 0; i < 19; i += 1) {
