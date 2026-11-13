@@ -43,6 +43,7 @@ const ui = {
   guidance: document.querySelector("#guidance"),
   guidanceLabel: document.querySelector("#guidance-label"),
   guidanceText: document.querySelector("#guidance-text"),
+  checkpointNotice: document.querySelector("#checkpoint-notice"),
 };
 
 const scene = new THREE.Scene();
@@ -107,6 +108,7 @@ let landingBounce = 0;
 let soundWaveCooldown = 0;
 let checkpointState = null;
 let guidanceTimer = null;
+let checkpointNoticeTimer = null;
 let exitHintShown = false;
 let paused = false;
 let gameTime = 0;
@@ -123,6 +125,18 @@ function showGuidance(text, label = "Tip", duration = 4600) {
   ui.guidanceText.textContent = text;
   ui.guidance.hidden = false;
   guidanceTimer = setTimeout(hideGuidance, duration);
+}
+
+function hideCheckpointNotice() {
+  clearTimeout(checkpointNoticeTimer);
+  checkpointNoticeTimer = null;
+  ui.checkpointNotice.hidden = true;
+}
+
+function showCheckpointNotice() {
+  clearTimeout(checkpointNoticeTimer);
+  ui.checkpointNotice.hidden = false;
+  checkpointNoticeTimer = setTimeout(hideCheckpointNotice, 3600);
 }
 
 function pauseGame() {
@@ -448,16 +462,27 @@ function createCheckpoint() {
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
+  const beamMaterial = new THREE.MeshBasicMaterial({
+    color: 0x55e7f8,
+    transparent: true,
+    opacity: 0.1,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
   const base = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.36, 0.12, 16), baseMaterial);
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 0.72, 10), baseMaterial);
   const orb = new THREE.Mesh(new THREE.SphereGeometry(0.16, 18, 12), glowMaterial);
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.29, 0.024, 8, 42), ringMaterial);
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.24, 5.2, 18, 1, true), beamMaterial);
   base.position.y = 0.06;
   pole.position.y = 0.45;
   orb.position.y = 0.88;
   ring.position.y = 0.88;
   ring.rotation.z = 0.18;
-  group.add(base, pole, orb, ring);
+  beam.position.y = 3.15;
+  beam.renderOrder = 2;
+  group.add(base, pole, orb, ring, beam);
   group.position.set(CHECKPOINT_X, -2, PLAYER_Z - 0.32);
   const light = new THREE.PointLight(0x55e7f8, 3.5, 3.5, 2);
   light.position.set(0, 0.88, 0.45);
@@ -466,8 +491,10 @@ function createCheckpoint() {
   checkpoints.push({
     group,
     ring,
+    beam,
     glowMaterial,
     ringMaterial,
+    beamMaterial,
     light,
     x: CHECKPOINT_X,
     respawnX: CHECKPOINT_X + 0.75,
@@ -1007,7 +1034,7 @@ function activateCheckpoint(checkpoint) {
   updateHealth();
   ui.retry.textContent = "Return to checkpoint";
   ui.mission.textContent = "The sound beacon remembers your progress. Your rhythm is restored.";
-  showGuidance("Checkpoint active — your notes, sound charges and return point are saved.", "Sound beacon", 5200);
+  showCheckpointNotice();
   tone(220, 0.22, 0, "sine", 0.06);
   tone(330, 0.24, 0.08, "triangle", 0.055);
   tone(440, 0.28, 0.16, "sine", 0.05);
@@ -1020,8 +1047,7 @@ function updateCheckpoints(elapsed) {
       && !completed
       && !defeated
       && !checkpoint.activated
-      && onGround
-      && Math.abs(player.position.x - checkpoint.x) < 0.8
+      && Math.abs(player.position.x - checkpoint.x) < 1.05
     ) {
       activateCheckpoint(checkpoint);
     }
@@ -1033,6 +1059,9 @@ function updateCheckpoints(elapsed) {
     checkpoint.ring.scale.setScalar(1 + pulse * (checkpoint.activated ? 0.16 : 0.06));
     checkpoint.ringMaterial.opacity = 0.34 + pulse * 0.16 + checkpoint.activation * 0.2;
     checkpoint.ringMaterial.color.set(checkpoint.activated ? 0xff67d2 : 0x55e7f8);
+    checkpoint.beamMaterial.color.set(checkpoint.activated ? 0xff67d2 : 0x55e7f8);
+    checkpoint.beamMaterial.opacity = 0.07 + pulse * 0.055 + checkpoint.activation * 0.07;
+    checkpoint.beam.scale.set(1 + pulse * 0.12, 1, 1 + pulse * 0.12);
     checkpoint.glowMaterial.emissive.set(checkpoint.activated ? 0xb52383 : 0x1594a7);
     checkpoint.glowMaterial.emissiveIntensity = 1.1 + checkpoint.activation * 2.3 + pulse * 0.35;
     checkpoint.light.color.set(checkpoint.activated ? 0xff67d2 : 0x55e7f8);
@@ -1054,6 +1083,7 @@ function respawnAtCheckpoint() {
   invulnerabilityTime = 1;
   soundWaveCooldown = 0;
   paused = false;
+  hideCheckpointNotice();
   placePlayer(checkpointState.checkpoint.respawnX);
   restoreNotes(checkpointState.notes);
   resetThreats();
@@ -1090,6 +1120,7 @@ function defeat() {
   ui.retry.textContent = checkpointState ? "Return to checkpoint" : "Try again";
   ui.pauseButton.hidden = true;
   hideGuidance();
+  hideCheckpointNotice();
   tone(110, 0.38, 0, "sawtooth");
   tone(73, 0.58, 0.2, "triangle");
   setTimeout(() => {
@@ -1135,6 +1166,7 @@ function reset() {
   exitHintShown = false;
   paused = false;
   gameTime = 0;
+  hideCheckpointNotice();
   placePlayer(0, 0);
   restoreNotes();
   resetThreats();
@@ -1170,6 +1202,7 @@ function finish() {
   scene.background.set(0x12091c);
   ui.mission.textContent = "The silence breaks. The district can hear you.";
   hideGuidance();
+  hideCheckpointNotice();
   ui.pauseButton.hidden = true;
   ui.encoreScore.textContent = `You carried ${collected} of ${TOTAL_NOTES} lost notes to the stage.`;
   solo();
