@@ -44,6 +44,10 @@ const ui = {
   guidanceLabel: document.querySelector("#guidance-label"),
   guidanceText: document.querySelector("#guidance-text"),
   checkpointNotice: document.querySelector("#checkpoint-notice"),
+  touchControls: document.querySelector("#touch-controls"),
+  touchMoveButtons: [...document.querySelectorAll("[data-move-key]")],
+  touchJump: document.querySelector("#touch-jump"),
+  touchSound: document.querySelector("#touch-sound"),
 };
 
 const scene = new THREE.Scene();
@@ -112,6 +116,7 @@ let checkpointNoticeTimer = null;
 let exitHintShown = false;
 let paused = false;
 let gameTime = 0;
+const touchPreferred = matchMedia("(hover: none), (pointer: coarse)").matches;
 
 function hideGuidance() {
   clearTimeout(guidanceTimer);
@@ -143,8 +148,10 @@ function pauseGame() {
   if (!started || completed || defeated || paused) return;
   paused = true;
   keys.clear();
+  releaseTouchMovement();
   hideGuidance();
   ui.pauseMenu.hidden = false;
+  ui.game.classList.add("is-paused");
   ui.pauseButton.setAttribute("aria-pressed", "true");
   ui.checkpointButton.hidden = !checkpointState;
   ui.resume.focus();
@@ -154,6 +161,7 @@ function resumeGame() {
   if (!paused) return;
   paused = false;
   ui.pauseMenu.hidden = true;
+  ui.game.classList.remove("is-paused");
   ui.pauseButton.setAttribute("aria-pressed", "false");
   clock.getDelta();
   ui.pauseButton.focus();
@@ -162,6 +170,20 @@ function resumeGame() {
 function togglePause() {
   if (paused) resumeGame();
   else pauseGame();
+}
+
+function trapPauseFocus(event) {
+  const focusable = [...ui.pauseMenu.querySelectorAll("button:not([hidden]), input:not([disabled])")];
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 function mat(color, roughness = 0.76, metalness = 0.18) {
@@ -882,10 +904,12 @@ function updateSoundEnergy() {
   ui.soundEnergy.setAttribute("aria-label", `${soundEnergy} of ${MAX_SOUND_ENERGY} sound charges`);
   ui.soundControlLabel.textContent = `sound wave · ${soundEnergy}/${MAX_SOUND_ENERGY}`;
   ui.soundEnergy.classList.toggle("is-empty", soundEnergy === 0);
+  ui.touchSound.classList.toggle("is-empty", soundEnergy === 0);
+  ui.touchSound.setAttribute("aria-label", `Use sound wave, ${soundEnergy} of ${MAX_SOUND_ENERGY} charges available`);
 }
 
 function emitSoundWave() {
-  if (!started || completed || defeated || soundWaveCooldown > 0) return;
+  if (!started || completed || defeated || paused || soundWaveCooldown > 0) return;
   if (soundEnergy < SOUND_WAVE.cost) {
     ui.mission.textContent = "The guitar is silent. Collect a lost note to recharge the sound wave.";
     ui.soundEnergy.classList.add("is-denied");
@@ -945,6 +969,7 @@ function updateSoundWaves(delta) {
   ui.soundControl.classList.toggle("is-cooling", soundWaveCooldown > 0);
   ui.soundControl.classList.toggle("is-ready", soundWaveCooldown === 0 && soundEnergy > 0);
   ui.soundControl.classList.toggle("is-empty", soundEnergy === 0);
+  ui.touchSound.classList.toggle("is-cooling", soundWaveCooldown > 0);
 
   for (let index = soundWaves.length - 1; index >= 0; index -= 1) {
     const wave = soundWaves[index];
@@ -1100,6 +1125,8 @@ function respawnAtCheckpoint() {
   ui.pauseMenu.hidden = true;
   ui.pauseButton.hidden = false;
   ui.pauseButton.setAttribute("aria-pressed", "false");
+  ui.game.classList.add("is-active");
+  ui.game.classList.remove("is-paused");
   ui.game.classList.remove("is-hit");
   tone(165, 0.3, 0, "sine", 0.05);
   tone(330, 0.34, 0.1, "triangle", 0.045);
@@ -1109,6 +1136,7 @@ function respawnAtCheckpoint() {
 function defeat() {
   defeated = true;
   keys.clear();
+  releaseTouchMovement();
   velocityY = 0;
   player.userData.rig.visual.visible = true;
   ui.mission.textContent = checkpointState
@@ -1119,6 +1147,7 @@ function defeat() {
     : `You recovered ${collected} of ${TOTAL_NOTES} lost notes before the silence closed in.`;
   ui.retry.textContent = checkpointState ? "Return to checkpoint" : "Try again";
   ui.pauseButton.hidden = true;
+  ui.game.classList.remove("is-active", "is-paused");
   hideGuidance();
   hideCheckpointNotice();
   tone(110, 0.38, 0, "sawtooth");
@@ -1166,6 +1195,8 @@ function reset() {
   exitHintShown = false;
   paused = false;
   gameTime = 0;
+  keys.clear();
+  releaseTouchMovement();
   hideCheckpointNotice();
   placePlayer(0, 0);
   restoreNotes();
@@ -1188,7 +1219,8 @@ function reset() {
   ui.pauseButton.setAttribute("aria-pressed", "false");
   ui.checkpointButton.hidden = true;
   ui.retry.textContent = "Try again";
-  ui.game.classList.remove("is-hit");
+  ui.game.classList.add("is-active");
+  ui.game.classList.remove("is-hit", "is-paused");
   clock.start();
 }
 
@@ -1197,6 +1229,7 @@ function finish() {
   completed = true;
   velocityY = 0;
   keys.clear();
+  releaseTouchMovement();
   stageLight.intensity = 120;
   neon.intensity = 58;
   scene.background.set(0x12091c);
@@ -1204,6 +1237,7 @@ function finish() {
   hideGuidance();
   hideCheckpointNotice();
   ui.pauseButton.hidden = true;
+  ui.game.classList.remove("is-active", "is-paused");
   ui.encoreScore.textContent = `You carried ${collected} of ${TOTAL_NOTES} lost notes to the stage.`;
   solo();
   setTimeout(() => (ui.encore.hidden = false), 1250);
@@ -1504,10 +1538,63 @@ function animate() {
   renderer.render(scene, camera);
 }
 
+function releaseTouchMovement() {
+  ui.touchMoveButtons.forEach((button) => {
+    keys.delete(button.dataset.moveKey);
+    button.classList.remove("is-pressed");
+  });
+}
+
+function bindTouchMovement(button) {
+  const code = button.dataset.moveKey;
+  const release = () => {
+    keys.delete(code);
+    button.classList.remove("is-pressed");
+  };
+  button.addEventListener("pointerdown", (event) => {
+    if (!started || completed || defeated || paused) return;
+    event.preventDefault();
+    ensureAudio();
+    keys.add(code);
+    button.classList.add("is-pressed");
+    button.setPointerCapture?.(event.pointerId);
+  });
+  button.addEventListener("pointerup", release);
+  button.addEventListener("pointercancel", release);
+  button.addEventListener("lostpointercapture", release);
+  button.addEventListener("contextmenu", (event) => event.preventDefault());
+}
+
+ui.touchMoveButtons.forEach(bindTouchMovement);
+ui.touchJump.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  ensureAudio();
+  ui.touchJump.classList.add("is-pressed");
+  ui.touchJump.setPointerCapture?.(event.pointerId);
+  jump();
+});
+ui.touchJump.addEventListener("pointerup", () => ui.touchJump.classList.remove("is-pressed"));
+ui.touchJump.addEventListener("pointercancel", () => ui.touchJump.classList.remove("is-pressed"));
+ui.touchJump.addEventListener("lostpointercapture", () => ui.touchJump.classList.remove("is-pressed"));
+ui.touchSound.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  ensureAudio();
+  ui.touchSound.classList.add("is-pressed");
+  ui.touchSound.setPointerCapture?.(event.pointerId);
+  emitSoundWave();
+});
+ui.touchSound.addEventListener("pointerup", () => ui.touchSound.classList.remove("is-pressed"));
+ui.touchSound.addEventListener("pointercancel", () => ui.touchSound.classList.remove("is-pressed"));
+ui.touchSound.addEventListener("lostpointercapture", () => ui.touchSound.classList.remove("is-pressed"));
+
 addEventListener("keydown", (event) => {
   if (["Escape", "KeyP"].includes(event.code) && !event.repeat) {
     event.preventDefault();
     togglePause();
+    return;
+  }
+  if (paused && event.key === "Tab") {
+    trapPauseFocus(event);
     return;
   }
   if (paused) return;
@@ -1520,6 +1607,7 @@ addEventListener("keydown", (event) => {
 addEventListener("keyup", (event) => keys.delete(event.code));
 addEventListener("blur", () => {
   keys.clear();
+  releaseTouchMovement();
   pauseGame();
 });
 addEventListener("resize", resize);
@@ -1529,7 +1617,13 @@ ui.start.addEventListener("click", () => {
   started = true;
   ui.intro.hidden = true;
   reset();
-  showGuidance("Move with A/D, jump with W or Space, and press E to spend one sound charge.", "Controls", 7000);
+  showGuidance(
+    touchPreferred
+      ? "Use the arrows to move, ↑ to jump, and ∿ to spend one sound charge."
+      : "Move with A/D, jump with W or Space, and press E to spend one sound charge.",
+    "Controls",
+    7000,
+  );
   tone(110, 0.45, 0, "sine");
 });
 ui.restart.addEventListener("click", reset);

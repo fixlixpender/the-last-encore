@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#05060b" />
     <title>The Last Encore</title>
     <link rel="stylesheet" href="./src/style.css" />
@@ -15,7 +15,7 @@
     </script>
   </head>
   <body>
-    <main id="game">
+    <main id="game" aria-label="The Last Encore game">
       <header class="hud">
         <div class="brand">
           <span class="eyebrow">A sound-powered journey</span>
@@ -57,7 +57,7 @@
         </div>
       </header>
 
-      <section class="mission" id="mission">
+      <section class="mission" id="mission" aria-live="polite">
         <p class="mission-label">Current objective</p>
         <p id="mission-text">Collect lost notes. Reach the LIVE door at the end of the district.</p>
       </section>
@@ -65,10 +65,15 @@
       <section class="intro" id="intro">
         <p class="kicker">The city has forgotten how to sing.</p>
         <p>But the show must go on.</p>
-        <div class="intro-controls" aria-label="Game controls">
+        <div class="intro-controls keyboard-intro-controls" aria-label="Keyboard controls">
           <span><span class="key-group"><kbd>A</kbd><kbd>D</kbd></span><strong>Move</strong></span>
           <span><span class="key-group"><kbd>W</kbd><kbd>Space</kbd></span><strong>Jump</strong></span>
           <span><span class="key-group"><kbd>E</kbd></span><strong>Sound wave</strong></span>
+        </div>
+        <div class="intro-controls touch-intro-controls" aria-label="Touch controls">
+          <span><span class="touch-guide-icon" aria-hidden="true">← →</span><strong>Move</strong></span>
+          <span><span class="touch-guide-icon" aria-hidden="true">↑</span><strong>Jump</strong></span>
+          <span><span class="touch-guide-icon" aria-hidden="true">∿</span><strong>Sound wave</strong></span>
         </div>
         <p class="intro-goal">Lost notes recharge your sound. Enter the glowing LIVE door to finish.</p>
         <button id="start-button" type="button">Enter the silence</button>
@@ -111,6 +116,25 @@
         <span id="sound-control" class="sound-control is-ready"><kbd>E</kbd><span id="sound-control-label">sound wave · 1/2</span></span>
       </div>
 
+      <nav class="touch-controls" id="touch-controls" aria-label="Touch controls">
+        <div class="touch-movement">
+          <button class="touch-button" type="button" data-move-key="KeyA" aria-label="Move left">
+            <span aria-hidden="true">←</span>
+          </button>
+          <button class="touch-button" type="button" data-move-key="KeyD" aria-label="Move right">
+            <span aria-hidden="true">→</span>
+          </button>
+        </div>
+        <div class="touch-actions">
+          <button class="touch-button touch-jump" id="touch-jump" type="button" aria-label="Jump">
+            <span aria-hidden="true">↑</span><small>Jump</small>
+          </button>
+          <button class="touch-button touch-sound" id="touch-sound" type="button" aria-label="Use sound wave">
+            <span aria-hidden="true">∿</span><small>Sound</small>
+          </button>
+        </div>
+      </nav>
+
       <div class="guidance" id="guidance" role="status" aria-live="polite" hidden>
         <span class="guidance-label" id="guidance-label">Tip</span>
         <span id="guidance-text"></span>
@@ -124,6 +148,6 @@
 
       <div class="vignette" aria-hidden="true"></div>
     </main>
-    <script type="module" src="./src/main.js?v=checkpoint-feedback-1"></script>
+    <script type="module" src="./src/main.js?v=touch-accessibility-1"></script>
   </body>
 </html>
