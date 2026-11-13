@@ -33,6 +33,13 @@ const ui = {
   start: document.querySelector("#start-button"),
   restart: document.querySelector("#restart-button"),
   retry: document.querySelector("#retry-button"),
+  pauseButton: document.querySelector("#pause-button"),
+  pauseMenu: document.querySelector("#pause-menu"),
+  resume: document.querySelector("#resume-button"),
+  checkpointButton: document.querySelector("#checkpoint-button"),
+  restartLevel: document.querySelector("#restart-level-button"),
+  volumeSlider: document.querySelector("#volume-slider"),
+  volumeOutput: document.querySelector("#volume-output"),
   guidance: document.querySelector("#guidance"),
   guidanceLabel: document.querySelector("#guidance-label"),
   guidanceText: document.querySelector("#guidance-text"),
@@ -94,11 +101,15 @@ let velocityY = 0;
 let onGround = false;
 let facing = 1;
 let audio = null;
+let masterGain = null;
+let masterVolume = 1;
 let landingBounce = 0;
 let soundWaveCooldown = 0;
 let checkpointState = null;
 let guidanceTimer = null;
 let exitHintShown = false;
+let paused = false;
+let gameTime = 0;
 
 function hideGuidance() {
   clearTimeout(guidanceTimer);
@@ -112,6 +123,31 @@ function showGuidance(text, label = "Tip", duration = 4600) {
   ui.guidanceText.textContent = text;
   ui.guidance.hidden = false;
   guidanceTimer = setTimeout(hideGuidance, duration);
+}
+
+function pauseGame() {
+  if (!started || completed || defeated || paused) return;
+  paused = true;
+  keys.clear();
+  hideGuidance();
+  ui.pauseMenu.hidden = false;
+  ui.pauseButton.setAttribute("aria-pressed", "true");
+  ui.checkpointButton.hidden = !checkpointState;
+  ui.resume.focus();
+}
+
+function resumeGame() {
+  if (!paused) return;
+  paused = false;
+  ui.pauseMenu.hidden = true;
+  ui.pauseButton.setAttribute("aria-pressed", "false");
+  clock.getDelta();
+  ui.pauseButton.focus();
+}
+
+function togglePause() {
+  if (paused) resumeGame();
+  else pauseGame();
 }
 
 function mat(color, roughness = 0.76, metalness = 0.18) {
@@ -776,8 +812,19 @@ const clock = new THREE.Clock();
 
 function ensureAudio() {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!audio && AudioContextClass) audio = new AudioContextClass();
+  if (!audio && AudioContextClass) {
+    audio = new AudioContextClass();
+    masterGain = audio.createGain();
+    masterGain.gain.value = masterVolume;
+    masterGain.connect(audio.destination);
+  }
   if (audio && audio.state === "suspended") audio.resume();
+}
+
+function setVolume(value) {
+  masterVolume = THREE.MathUtils.clamp(Number(value) / 100, 0, 1);
+  ui.volumeOutput.textContent = masterVolume === 0 ? "Muted" : `${Math.round(masterVolume * 100)}%`;
+  if (masterGain && audio) masterGain.gain.setTargetAtTime(masterVolume, audio.currentTime, 0.02);
 }
 
 function tone(frequency, duration = 0.18, delay = 0, type = "triangle", volume = 0.12) {
@@ -790,7 +837,7 @@ function tone(frequency, duration = 0.18, delay = 0, type = "triangle", volume =
   gain.gain.setValueAtTime(0.0001, start);
   gain.gain.exponentialRampToValueAtTime(volume, start + 0.015);
   gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-  oscillator.connect(gain).connect(audio.destination);
+  oscillator.connect(gain).connect(masterGain || audio.destination);
   oscillator.start(start);
   oscillator.stop(start + duration + 0.02);
 }
@@ -1006,6 +1053,7 @@ function respawnAtCheckpoint() {
   soundEnergy = checkpointState.soundEnergy;
   invulnerabilityTime = 1;
   soundWaveCooldown = 0;
+  paused = false;
   placePlayer(checkpointState.checkpoint.respawnX);
   restoreNotes(checkpointState.notes);
   resetThreats();
@@ -1019,6 +1067,9 @@ function respawnAtCheckpoint() {
   showGuidance("You kept the notes and sound charges saved at the beacon.", "Checkpoint", 4200);
   ui.encore.hidden = true;
   ui.gameOver.hidden = true;
+  ui.pauseMenu.hidden = true;
+  ui.pauseButton.hidden = false;
+  ui.pauseButton.setAttribute("aria-pressed", "false");
   ui.game.classList.remove("is-hit");
   tone(165, 0.3, 0, "sine", 0.05);
   tone(330, 0.34, 0.1, "triangle", 0.045);
@@ -1037,6 +1088,7 @@ function defeat() {
     ? `The beacon remembers ${checkpointState.collected} of ${TOTAL_NOTES} lost notes.`
     : `You recovered ${collected} of ${TOTAL_NOTES} lost notes before the silence closed in.`;
   ui.retry.textContent = checkpointState ? "Return to checkpoint" : "Try again";
+  ui.pauseButton.hidden = true;
   hideGuidance();
   tone(110, 0.38, 0, "sawtooth");
   tone(73, 0.58, 0.2, "triangle");
@@ -1081,6 +1133,8 @@ function reset() {
   invulnerabilityTime = 0;
   soundWaveCooldown = 0;
   exitHintShown = false;
+  paused = false;
+  gameTime = 0;
   placePlayer(0, 0);
   restoreNotes();
   resetThreats();
@@ -1097,6 +1151,10 @@ function reset() {
   ui.mission.textContent = "Collect lost notes and enter the LIVE door. Jump shadows or break through with sound.";
   ui.encore.hidden = true;
   ui.gameOver.hidden = true;
+  ui.pauseMenu.hidden = true;
+  ui.pauseButton.hidden = false;
+  ui.pauseButton.setAttribute("aria-pressed", "false");
+  ui.checkpointButton.hidden = true;
   ui.retry.textContent = "Try again";
   ui.game.classList.remove("is-hit");
   clock.start();
@@ -1112,6 +1170,7 @@ function finish() {
   scene.background.set(0x12091c);
   ui.mission.textContent = "The silence breaks. The district can hear you.";
   hideGuidance();
+  ui.pauseButton.hidden = true;
   ui.encoreScore.textContent = `You carried ${collected} of ${TOTAL_NOTES} lost notes to the stage.`;
   solo();
   setTimeout(() => (ui.encore.hidden = false), 1250);
@@ -1382,7 +1441,7 @@ function resize() {
 }
 
 function jump() {
-  if (!started || completed || defeated || !onGround) return;
+  if (!started || completed || defeated || paused || !onGround) return;
   velocityY = PLAYER.jump;
   onGround = false;
   tone(165, 0.1, 0, "square");
@@ -1390,8 +1449,13 @@ function jump() {
 
 function animate() {
   requestAnimationFrame(animate);
+  if (paused) {
+    renderer.render(scene, camera);
+    return;
+  }
   const delta = Math.min(clock.getDelta(), 0.033);
-  const elapsed = clock.elapsedTime;
+  gameTime += delta;
+  const elapsed = gameTime;
   updatePlayer(delta);
   updateNotes(elapsed);
   updateCheckpoints(elapsed);
@@ -1408,6 +1472,12 @@ function animate() {
 }
 
 addEventListener("keydown", (event) => {
+  if (["Escape", "KeyP"].includes(event.code) && !event.repeat) {
+    event.preventDefault();
+    togglePause();
+    return;
+  }
+  if (paused) return;
   ensureAudio();
   keys.add(event.code);
   if (["ArrowLeft", "ArrowRight", "ArrowUp", "Space"].includes(event.code)) event.preventDefault();
@@ -1415,7 +1485,10 @@ addEventListener("keydown", (event) => {
   if (event.code === "KeyE" && !event.repeat) emitSoundWave();
 });
 addEventListener("keyup", (event) => keys.delete(event.code));
-addEventListener("blur", () => keys.clear());
+addEventListener("blur", () => {
+  keys.clear();
+  pauseGame();
+});
 addEventListener("resize", resize);
 
 ui.start.addEventListener("click", () => {
@@ -1427,6 +1500,21 @@ ui.start.addEventListener("click", () => {
   tone(110, 0.45, 0, "sine");
 });
 ui.restart.addEventListener("click", reset);
+ui.pauseButton.addEventListener("click", pauseGame);
+ui.resume.addEventListener("click", resumeGame);
+ui.restartLevel.addEventListener("click", () => {
+  resumeGame();
+  reset();
+  showGuidance("The level has restarted from the beginning.", "Restart", 3600);
+});
+ui.checkpointButton.addEventListener("click", () => {
+  resumeGame();
+  respawnAtCheckpoint();
+});
+ui.volumeSlider.addEventListener("input", (event) => {
+  ensureAudio();
+  setVolume(event.target.value);
+});
 ui.retry.addEventListener("click", () => {
   if (checkpointState) {
     respawnAtCheckpoint();
@@ -1435,5 +1523,6 @@ ui.retry.addEventListener("click", () => {
   }
 });
 
+setVolume(ui.volumeSlider.value);
 resize();
 animate();

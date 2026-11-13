@@ -81,6 +81,33 @@ h1 {
   align-items: center;
 }
 
+.hud-tools {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.pause-button {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border-color: rgb(83 232 255 / 24%);
+  color: #8fa5ba;
+  background: rgb(4 8 16 / 68%);
+  box-shadow: inset 0 0 20px rgb(83 232 255 / 5%);
+  font-size: 0.68rem;
+}
+
+.pause-button span {
+  color: #53e8ff;
+  font-family: Inter, sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: -0.08em;
+}
+
 .counter,
 .health,
 .sound-energy {
@@ -209,7 +236,8 @@ h1 {
 
 .intro,
 .encore,
-.game-over {
+.game-over,
+.pause-menu {
   position: fixed;
   z-index: 8;
   top: 50%;
@@ -227,7 +255,8 @@ h1 {
 
 .intro::before,
 .encore::before,
-.game-over::before {
+.game-over::before,
+.pause-menu::before {
   position: absolute;
   inset: 8px;
   border: 1px solid rgb(255 255 255 / 5%);
@@ -284,7 +313,8 @@ h1 {
 }
 
 .encore h2,
-.game-over h2 {
+.game-over h2,
+.pause-menu h2 {
   margin: 7px 0 12px;
   font-size: clamp(2.4rem, 7vw, 4.6rem);
   line-height: 0.9;
@@ -302,6 +332,77 @@ h1 {
 
 .game-over .kicker {
   color: #ff55cf;
+}
+
+.pause-menu {
+  width: min(480px, calc(100% - 40px));
+  border-color: rgb(83 232 255 / 30%);
+}
+
+.pause-copy {
+  margin-bottom: 24px;
+  color: #8d9caf;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.volume-control {
+  display: grid;
+  margin-bottom: 24px;
+  padding: 15px 16px;
+  grid-template-columns: 1fr auto;
+  gap: 10px 14px;
+  border: 1px solid rgb(83 232 255 / 13%);
+  color: #a8b8ca;
+  background: rgb(4 8 16 / 46%);
+  font: 600 0.66rem Inter, sans-serif;
+  letter-spacing: 0.1em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.volume-control output {
+  color: #53e8ff;
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 0.78rem;
+}
+
+.volume-control input {
+  width: 100%;
+  grid-column: 1 / -1;
+  accent-color: #53e8ff;
+  cursor: pointer;
+}
+
+.pause-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.secondary-button {
+  border-color: rgb(143 165 186 / 35%);
+  color: #a9b7c7;
+  background: rgb(10 15 25 / 70%);
+}
+
+.secondary-button:hover {
+  border-color: #ff55cf;
+  color: #fff2fb;
+  background: rgb(82 25 69 / 52%);
+  box-shadow: 0 0 30px rgb(255 85 207 / 20%);
+}
+
+.pause-shortcut {
+  margin-top: 20px;
+  color: #66768a;
+  font-size: 0.62rem;
+}
+
+.pause-shortcut kbd {
+  min-width: 20px;
+  height: 20px;
 }
 
 #game.is-hit canvas {
@@ -437,6 +538,20 @@ kbd {
     gap: 6px;
   }
 
+  .hud-tools {
+    gap: 6px;
+  }
+
+  .pause-button {
+    min-width: 38px;
+    padding: 8px 9px;
+    font-size: 0;
+  }
+
+  .pause-button span {
+    font-size: 0.72rem;
+  }
+
   .counter,
   .health,
   .sound-energy {
@@ -462,8 +577,13 @@ kbd {
 
   .intro,
   .encore,
-  .game-over {
+  .game-over,
+  .pause-menu {
     padding: 34px 24px;
+  }
+
+  .pause-actions {
+    flex-direction: column;
   }
 
   .intro-controls {

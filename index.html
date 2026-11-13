@@ -21,33 +21,38 @@
           <span class="eyebrow">A sound-powered journey</span>
           <h1>The Last Encore</h1>
         </div>
-        <div class="hud-status">
-          <div class="sound-energy" id="sound-energy" aria-live="polite" aria-label="1 of 2 sound charges">
-            <span class="energy-icon" aria-hidden="true">∿</span>
-            <span class="status-copy">
-              <span class="status-label">Sound wave</span>
-              <span class="energy-meter" aria-hidden="true">
-                <span class="energy-pip is-filled"></span>
-                <span class="energy-pip"></span>
+        <div class="hud-tools">
+          <button class="pause-button" id="pause-button" type="button" aria-keyshortcuts="Escape P" aria-pressed="false" hidden>
+            <span aria-hidden="true">Ⅱ</span> Pause
+          </button>
+          <div class="hud-status">
+            <div class="sound-energy" id="sound-energy" aria-live="polite" aria-label="1 of 2 sound charges">
+              <span class="energy-icon" aria-hidden="true">∿</span>
+              <span class="status-copy">
+                <span class="status-label">Sound wave</span>
+                <span class="energy-meter" aria-hidden="true">
+                  <span class="energy-pip is-filled"></span>
+                  <span class="energy-pip"></span>
+                </span>
               </span>
-            </span>
-          </div>
-          <div class="health" id="health" aria-label="3 hearts remaining">
-            <span class="status-copy">
-              <span class="status-label">Rhythm</span>
-              <span class="heart-meter" aria-hidden="true">
-                <span class="heart">♥</span>
-                <span class="heart">♥</span>
-                <span class="heart">♥</span>
+            </div>
+            <div class="health" id="health" aria-label="3 hearts remaining">
+              <span class="status-copy">
+                <span class="status-label">Rhythm</span>
+                <span class="heart-meter" aria-hidden="true">
+                  <span class="heart">♥</span>
+                  <span class="heart">♥</span>
+                  <span class="heart">♥</span>
+                </span>
               </span>
-            </span>
-          </div>
-          <div class="counter" aria-live="polite">
-            <span class="note-icon" aria-hidden="true">♪</span>
-            <span class="status-copy">
-              <span class="status-label">Lost notes</span>
-              <span id="note-count">0 / 5</span>
-            </span>
+            </div>
+            <div class="counter" aria-live="polite">
+              <span class="note-icon" aria-hidden="true">♪</span>
+              <span class="status-copy">
+                <span class="status-label">Lost notes</span>
+                <span id="note-count">0 / 5</span>
+              </span>
+            </div>
           </div>
         </div>
       </header>
@@ -83,6 +88,23 @@
         <button id="retry-button" type="button">Try again</button>
       </section>
 
+      <section class="pause-menu" id="pause-menu" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden>
+        <p class="kicker">The city waits</p>
+        <h2 id="pause-title">Hold the beat.</h2>
+        <p class="pause-copy">Your progress is safe while the music is paused.</p>
+        <label class="volume-control" for="volume-slider">
+          <span>Volume</span>
+          <output id="volume-output" for="volume-slider">100%</output>
+          <input id="volume-slider" type="range" min="0" max="100" value="100" step="5" />
+        </label>
+        <div class="pause-actions">
+          <button id="resume-button" type="button">Resume</button>
+          <button class="secondary-button" id="checkpoint-button" type="button" hidden>Return to beacon</button>
+          <button class="secondary-button" id="restart-level-button" type="button">Restart level</button>
+        </div>
+        <p class="pause-shortcut"><kbd>Esc</kbd> or <kbd>P</kbd> to resume</p>
+      </section>
+
       <div class="controls" id="controls">
         <span><kbd>A</kbd><kbd>D</kbd> move</span>
         <span><kbd>W</kbd> / <kbd>Space</kbd> jump</span>
@@ -96,6 +118,6 @@
 
       <div class="vignette" aria-hidden="true"></div>
     </main>
-    <script type="module" src="./src/main.js?v=interface-1"></script>
+    <script type="module" src="./src/main.js?v=pause-controls-1"></script>
   </body>
 </html>
