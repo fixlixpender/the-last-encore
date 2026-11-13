@@ -104,6 +104,31 @@ h1 {
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
+.status-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1;
+}
+
+.status-label {
+  color: #71849a;
+  font-family: Inter, sans-serif;
+  font-size: 0.46rem;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.energy-meter,
+.heart-meter {
+  display: flex;
+  min-height: 14px;
+  align-items: center;
+  gap: 5px;
+}
+
 .energy-icon {
   margin-right: 2px;
   font-size: 1.05rem;
@@ -143,11 +168,11 @@ h1 {
   text-shadow: 0 0 12px rgb(255 78 203 / 72%);
 }
 
-.health span {
+.health .heart {
   transition: opacity 180ms ease, color 180ms ease, transform 180ms ease;
 }
 
-.health span.is-lost {
+.health .heart.is-lost {
   color: #506075;
   opacity: 0.28;
   text-shadow: none;
@@ -165,9 +190,10 @@ h1 {
   z-index: 4;
   top: 112px;
   left: 32px;
-  max-width: 280px;
-  padding-left: 12px;
+  max-width: 310px;
+  padding: 10px 14px;
   border-left: 2px solid #ff4ecb;
+  background: linear-gradient(90deg, rgb(4 7 14 / 72%), rgb(4 7 14 / 16%));
   color: #b8c5d6;
   font-size: 0.78rem;
   line-height: 1.45;
@@ -210,12 +236,51 @@ h1 {
 }
 
 .intro > p:nth-child(2) {
-  margin: 8px 0 28px;
+  margin: 8px 0 24px;
   font-family: "Barlow Condensed", sans-serif;
   font-size: clamp(2.2rem, 7vw, 4.5rem);
   font-weight: 700;
   line-height: 0.95;
   text-transform: uppercase;
+}
+
+.intro-controls {
+  display: grid;
+  margin: 0 auto 14px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.intro-controls > span {
+  display: flex;
+  min-height: 58px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgb(83 232 255 / 12%);
+  background: rgb(4 8 16 / 45%);
+}
+
+.intro-controls strong {
+  color: #9fb0c4;
+  font: 600 0.56rem Inter, sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.key-group {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+}
+
+.intro-goal {
+  max-width: 390px;
+  margin: 0 auto 22px;
+  color: #8090a4;
+  font-size: 0.68rem;
+  line-height: 1.5;
 }
 
 .encore h2,
@@ -274,6 +339,47 @@ button:hover {
   color: #8190a5;
   font-size: 0.68rem;
   pointer-events: none;
+}
+
+.guidance {
+  position: fixed;
+  z-index: 5;
+  bottom: 68px;
+  left: 50%;
+  display: flex;
+  max-width: min(560px, calc(100% - 40px));
+  align-items: center;
+  gap: 9px;
+  padding: 9px 13px;
+  transform: translateX(-50%);
+  border: 1px solid rgb(83 232 255 / 22%);
+  border-radius: 3px;
+  color: #9fb0c4;
+  background: rgb(4 8 16 / 84%);
+  box-shadow: 0 10px 40px rgb(0 0 0 / 38%);
+  font-size: 0.66rem;
+  line-height: 1.35;
+  text-align: left;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+  animation: guidance-in 220ms ease-out;
+}
+
+.guidance-label {
+  flex: 0 0 auto;
+  color: #53e8ff;
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+@keyframes guidance-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
 }
 
 .sound-control {
@@ -337,6 +443,10 @@ kbd {
     padding: 8px 10px;
   }
 
+  .status-label {
+    display: none;
+  }
+
   .mission {
     top: 92px;
     left: 18px;
@@ -354,5 +464,29 @@ kbd {
   .encore,
   .game-over {
     padding: 34px 24px;
+  }
+
+  .intro-controls {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  .intro-controls > span {
+    min-height: 42px;
+    flex-direction: row;
+  }
+
+  .guidance {
+    right: 16px;
+    bottom: 116px;
+    left: 16px;
+    transform: none;
+  }
+
+  @keyframes guidance-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
   }
 }

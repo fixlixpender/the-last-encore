@@ -24,7 +24,7 @@ const ui = {
   soundEnergy: document.querySelector("#sound-energy"),
   energyPips: [...document.querySelectorAll("#sound-energy .energy-pip")],
   health: document.querySelector("#health"),
-  healthHearts: [...document.querySelectorAll("#health span")],
+  healthHearts: [...document.querySelectorAll("#health .heart")],
   mission: document.querySelector("#mission-text"),
   encoreScore: document.querySelector("#encore-score"),
   gameOverScore: document.querySelector("#game-over-score"),
@@ -33,6 +33,9 @@ const ui = {
   start: document.querySelector("#start-button"),
   restart: document.querySelector("#restart-button"),
   retry: document.querySelector("#retry-button"),
+  guidance: document.querySelector("#guidance"),
+  guidanceLabel: document.querySelector("#guidance-label"),
+  guidanceText: document.querySelector("#guidance-text"),
 };
 
 const scene = new THREE.Scene();
@@ -94,6 +97,22 @@ let audio = null;
 let landingBounce = 0;
 let soundWaveCooldown = 0;
 let checkpointState = null;
+let guidanceTimer = null;
+let exitHintShown = false;
+
+function hideGuidance() {
+  clearTimeout(guidanceTimer);
+  guidanceTimer = null;
+  ui.guidance.hidden = true;
+}
+
+function showGuidance(text, label = "Tip", duration = 4600) {
+  clearTimeout(guidanceTimer);
+  ui.guidanceLabel.textContent = label;
+  ui.guidanceText.textContent = text;
+  ui.guidance.hidden = false;
+  guidanceTimer = setTimeout(hideGuidance, duration);
+}
 
 function mat(color, roughness = 0.76, metalness = 0.18) {
   return new THREE.MeshStandardMaterial({ color, roughness, metalness });
@@ -941,6 +960,7 @@ function activateCheckpoint(checkpoint) {
   updateHealth();
   ui.retry.textContent = "Return to checkpoint";
   ui.mission.textContent = "The sound beacon remembers your progress. Your rhythm is restored.";
+  showGuidance("Checkpoint active — your notes, sound charges and return point are saved.", "Sound beacon", 5200);
   tone(220, 0.22, 0, "sine", 0.06);
   tone(330, 0.24, 0.08, "triangle", 0.055);
   tone(440, 0.28, 0.16, "sine", 0.05);
@@ -996,6 +1016,7 @@ function respawnAtCheckpoint() {
   updateHealth();
   updateSoundEnergy();
   ui.mission.textContent = "The sound beacon brings you back. The next shadow is ahead.";
+  showGuidance("You kept the notes and sound charges saved at the beacon.", "Checkpoint", 4200);
   ui.encore.hidden = true;
   ui.gameOver.hidden = true;
   ui.game.classList.remove("is-hit");
@@ -1016,6 +1037,7 @@ function defeat() {
     ? `The beacon remembers ${checkpointState.collected} of ${TOTAL_NOTES} lost notes.`
     : `You recovered ${collected} of ${TOTAL_NOTES} lost notes before the silence closed in.`;
   ui.retry.textContent = checkpointState ? "Return to checkpoint" : "Try again";
+  hideGuidance();
   tone(110, 0.38, 0, "sawtooth");
   tone(73, 0.58, 0.2, "triangle");
   setTimeout(() => {
@@ -1058,6 +1080,7 @@ function reset() {
   checkpointState = null;
   invulnerabilityTime = 0;
   soundWaveCooldown = 0;
+  exitHintShown = false;
   placePlayer(0, 0);
   restoreNotes();
   resetThreats();
@@ -1071,7 +1094,7 @@ function reset() {
   ui.noteCount.textContent = `0 / ${TOTAL_NOTES}`;
   updateHealth();
   updateSoundEnergy();
-  ui.mission.textContent = "Collect notes to recharge E. Jump the shadows or break through with sound.";
+  ui.mission.textContent = "Collect lost notes and enter the LIVE door. Jump shadows or break through with sound.";
   ui.encore.hidden = true;
   ui.gameOver.hidden = true;
   ui.retry.textContent = "Try again";
@@ -1088,6 +1111,7 @@ function finish() {
   neon.intensity = 58;
   scene.background.set(0x12091c);
   ui.mission.textContent = "The silence breaks. The district can hear you.";
+  hideGuidance();
   ui.encoreScore.textContent = `You carried ${collected} of ${TOTAL_NOTES} lost notes to the stage.`;
   solo();
   setTimeout(() => (ui.encore.hidden = false), 1250);
@@ -1102,6 +1126,10 @@ function updatePlayer(delta) {
     - Number(keys.has("ArrowLeft") || keys.has("KeyA"));
   if (direction) facing = direction;
   player.position.x = THREE.MathUtils.clamp(player.position.x + direction * PLAYER.speed * delta, -1.5, 37.2);
+  if (!exitHintShown && player.position.x > 30.5) {
+    exitHintShown = true;
+    showGuidance("Step through the glowing LIVE door on the ground to finish the level.", "Final step", 6000);
+  }
   player.rotation.y = THREE.MathUtils.lerp(player.rotation.y, facing === 1 ? 0 : Math.PI, 0.2);
 
   const previousY = player.position.y;
@@ -1212,6 +1240,9 @@ function updateNotes(elapsed) {
       soundEnergy = Math.min(MAX_SOUND_ENERGY, soundEnergy + 1);
       ui.noteCount.textContent = `${collected} / ${TOTAL_NOTES}`;
       updateSoundEnergy();
+      if (collected === 1) {
+        showGuidance("Lost notes restore one sound-wave charge. You can carry two charges.", "Sound energy", 5000);
+      }
       tone(330 * 1.12 ** index, 0.24, 0, "sine");
       tone(495 * 1.08 ** index, 0.18, 0.055, "triangle");
       if (soundEnergy > previousEnergy && collected < TOTAL_NOTES) {
@@ -1392,6 +1423,7 @@ ui.start.addEventListener("click", () => {
   started = true;
   ui.intro.hidden = true;
   reset();
+  showGuidance("Move with A/D, jump with W or Space, and press E to spend one sound charge.", "Controls", 7000);
   tone(110, 0.45, 0, "sine");
 });
 ui.restart.addEventListener("click", reset);

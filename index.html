@@ -24,29 +24,48 @@
         <div class="hud-status">
           <div class="sound-energy" id="sound-energy" aria-live="polite" aria-label="1 of 2 sound charges">
             <span class="energy-icon" aria-hidden="true">∿</span>
-            <span class="energy-pip is-filled" aria-hidden="true"></span>
-            <span class="energy-pip" aria-hidden="true"></span>
+            <span class="status-copy">
+              <span class="status-label">Sound wave</span>
+              <span class="energy-meter" aria-hidden="true">
+                <span class="energy-pip is-filled"></span>
+                <span class="energy-pip"></span>
+              </span>
+            </span>
           </div>
           <div class="health" id="health" aria-label="3 hearts remaining">
-            <span aria-hidden="true">♥</span>
-            <span aria-hidden="true">♥</span>
-            <span aria-hidden="true">♥</span>
+            <span class="status-copy">
+              <span class="status-label">Rhythm</span>
+              <span class="heart-meter" aria-hidden="true">
+                <span class="heart">♥</span>
+                <span class="heart">♥</span>
+                <span class="heart">♥</span>
+              </span>
+            </span>
           </div>
           <div class="counter" aria-live="polite">
-            <span class="note-icon">♪</span>
-            <span id="note-count">0 / 5</span>
+            <span class="note-icon" aria-hidden="true">♪</span>
+            <span class="status-copy">
+              <span class="status-label">Lost notes</span>
+              <span id="note-count">0 / 5</span>
+            </span>
           </div>
         </div>
       </header>
 
       <section class="mission" id="mission">
-        <p class="mission-label">Tonight's mission</p>
-        <p id="mission-text">Cross the silent district. Reach the rooftop show.</p>
+        <p class="mission-label">Current objective</p>
+        <p id="mission-text">Collect lost notes. Reach the LIVE door at the end of the district.</p>
       </section>
 
       <section class="intro" id="intro">
         <p class="kicker">The city has forgotten how to sing.</p>
         <p>But the show must go on.</p>
+        <div class="intro-controls" aria-label="Game controls">
+          <span><span class="key-group"><kbd>A</kbd><kbd>D</kbd></span><strong>Move</strong></span>
+          <span><span class="key-group"><kbd>W</kbd><kbd>Space</kbd></span><strong>Jump</strong></span>
+          <span><span class="key-group"><kbd>E</kbd></span><strong>Sound wave</strong></span>
+        </div>
+        <p class="intro-goal">Lost notes recharge your sound. Enter the glowing LIVE door to finish.</p>
         <button id="start-button" type="button">Enter the silence</button>
       </section>
 
@@ -70,8 +89,13 @@
         <span id="sound-control" class="sound-control is-ready"><kbd>E</kbd><span id="sound-control-label">sound wave · 1/2</span></span>
       </div>
 
+      <div class="guidance" id="guidance" role="status" aria-live="polite" hidden>
+        <span class="guidance-label" id="guidance-label">Tip</span>
+        <span id="guidance-text"></span>
+      </div>
+
       <div class="vignette" aria-hidden="true"></div>
     </main>
-    <script type="module" src="./src/main.js?v=checkpoints-1"></script>
+    <script type="module" src="./src/main.js?v=interface-1"></script>
   </body>
 </html>
