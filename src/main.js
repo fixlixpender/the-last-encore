@@ -10,6 +10,7 @@ const SOUND_WAVE = { cost: 1, range: 3.6, duration: 0.52, cooldown: 1.1, stun: 2
 const NOTE_PROXIMITY = { radius: 3.2, collectRadius: 0.9 };
 const DAMAGE = { invulnerability: 1.35, knockback: 1.55, bounce: 6.2 };
 const EXIT_DOOR = { minX: 33, maxX: 35.4 };
+const CHECKPOINT_X = 20.8;
 const PLAYER_Z = 2;
 const PLAYER_START_Y = -0.98;
 const GRAVITY = 18;
@@ -75,6 +76,7 @@ const platforms = [];
 const notes = [];
 const shadows = [];
 const soundWaves = [];
+const checkpoints = [];
 const parallaxLayers = [];
 const atmosphere = { lights: [], fog: [], motes: null, windows: [] };
 const keys = new Set();
@@ -91,6 +93,7 @@ let facing = 1;
 let audio = null;
 let landingBounce = 0;
 let soundWaveCooldown = 0;
+let checkpointState = null;
 
 function mat(color, roughness = 0.76, metalness = 0.18) {
   return new THREE.MeshStandardMaterial({ color, roughness, metalness });
@@ -373,6 +376,51 @@ function createAtmosphere() {
   scene.add(atmosphere.motes);
 }
 
+function createCheckpoint() {
+  const group = new THREE.Group();
+  const baseMaterial = mat(0x162333, 0.62, 0.4);
+  const glowMaterial = new THREE.MeshStandardMaterial({
+    color: 0x55e7f8,
+    emissive: 0x1594a7,
+    emissiveIntensity: 1.1,
+    roughness: 0.32,
+    metalness: 0.28,
+  });
+  const ringMaterial = new THREE.MeshBasicMaterial({
+    color: 0x55e7f8,
+    transparent: true,
+    opacity: 0.42,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.36, 0.12, 16), baseMaterial);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 0.72, 10), baseMaterial);
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.16, 18, 12), glowMaterial);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.29, 0.024, 8, 42), ringMaterial);
+  base.position.y = 0.06;
+  pole.position.y = 0.45;
+  orb.position.y = 0.88;
+  ring.position.y = 0.88;
+  ring.rotation.z = 0.18;
+  group.add(base, pole, orb, ring);
+  group.position.set(CHECKPOINT_X, -2, PLAYER_Z - 0.32);
+  const light = new THREE.PointLight(0x55e7f8, 3.5, 3.5, 2);
+  light.position.set(0, 0.88, 0.45);
+  group.add(light);
+  scene.add(group);
+  checkpoints.push({
+    group,
+    ring,
+    glowMaterial,
+    ringMaterial,
+    light,
+    x: CHECKPOINT_X,
+    respawnX: CHECKPOINT_X + 0.75,
+    activated: false,
+    activation: 0,
+  });
+}
+
 function createWorld() {
   createCity();
   addPlatform(15, -2.65, 44, 1.3, 0x121722);
@@ -384,6 +432,7 @@ function createWorld() {
   addPlatform(34.2, -2.275, 7.4, 0.55, 0x21162a);
   createStage();
   createAtmosphere();
+  createCheckpoint();
 }
 
 function createGuitar() {
@@ -838,13 +887,135 @@ function updateHealth() {
   ui.health.setAttribute("aria-label", `${health} ${health === 1 ? "heart" : "hearts"} remaining`);
 }
 
+function placePlayer(x, cameraX = THREE.MathUtils.clamp(x + 2, 0, 31.5)) {
+  velocityY = 0;
+  onGround = false;
+  landingBounce = 0;
+  player.position.set(x, PLAYER_START_Y, PLAYER_Z);
+  player.rotation.set(0, 0, 0);
+  camera.position.x = cameraX;
+  camera.lookAt(cameraX, 0.7, 0);
+  player.userData.rig.walkTime = 0;
+  player.userData.rig.visual.position.set(0, 0, 0);
+  player.userData.rig.visual.scale.set(1, 1, 1);
+  player.userData.rig.visual.visible = true;
+  const guitar = player.getObjectByName("guitar");
+  guitar.position.set(-0.22, -0.01, -0.34);
+  guitar.rotation.set(0, 0, 0.38);
+}
+
+function restoreNotes(noteStates = null) {
+  notes.forEach((note, index) => {
+    note.collected = noteStates ? noteStates[index] : false;
+    note.group.visible = !note.collected;
+    note.group.position.y = note.originY;
+    note.group.scale.setScalar(1);
+    note.nearCuePlayed = false;
+    note.material.emissiveIntensity = 2.2;
+    note.halo.material.opacity = 0.12;
+    note.halo.scale.setScalar(1);
+    note.glow.intensity = 2.4;
+    note.glow.distance = 2.2;
+  });
+}
+
+function resetThreats() {
+  shadows.forEach((shadow) => {
+    shadow.group.position.x = shadow.startX;
+    shadow.direction = shadow.initialDirection;
+    shadow.stunTime = 0;
+    shadow.hitFlash = 0;
+  });
+  soundWaves.splice(0).forEach(removeSoundWave);
+}
+
+function activateCheckpoint(checkpoint) {
+  checkpoint.activated = true;
+  checkpointState = {
+    checkpoint,
+    collected,
+    soundEnergy,
+    notes: notes.map((note) => note.collected),
+  };
+  health = MAX_HEALTH;
+  updateHealth();
+  ui.retry.textContent = "Return to checkpoint";
+  ui.mission.textContent = "The sound beacon remembers your progress. Your rhythm is restored.";
+  tone(220, 0.22, 0, "sine", 0.06);
+  tone(330, 0.24, 0.08, "triangle", 0.055);
+  tone(440, 0.28, 0.16, "sine", 0.05);
+}
+
+function updateCheckpoints(elapsed) {
+  checkpoints.forEach((checkpoint) => {
+    if (
+      started
+      && !completed
+      && !defeated
+      && !checkpoint.activated
+      && onGround
+      && Math.abs(player.position.x - checkpoint.x) < 0.8
+    ) {
+      activateCheckpoint(checkpoint);
+    }
+
+    const target = checkpoint.activated ? 1 : 0;
+    checkpoint.activation = THREE.MathUtils.lerp(checkpoint.activation, target, 0.08);
+    const pulse = (Math.sin(elapsed * (checkpoint.activated ? 4.2 : 2.1)) + 1) / 2;
+    checkpoint.ring.rotation.y = elapsed * (checkpoint.activated ? 1.15 : 0.45);
+    checkpoint.ring.scale.setScalar(1 + pulse * (checkpoint.activated ? 0.16 : 0.06));
+    checkpoint.ringMaterial.opacity = 0.34 + pulse * 0.16 + checkpoint.activation * 0.2;
+    checkpoint.ringMaterial.color.set(checkpoint.activated ? 0xff67d2 : 0x55e7f8);
+    checkpoint.glowMaterial.emissive.set(checkpoint.activated ? 0xb52383 : 0x1594a7);
+    checkpoint.glowMaterial.emissiveIntensity = 1.1 + checkpoint.activation * 2.3 + pulse * 0.35;
+    checkpoint.light.color.set(checkpoint.activated ? 0xff67d2 : 0x55e7f8);
+    checkpoint.light.intensity = 3.5 + checkpoint.activation * 7 + pulse * 0.8;
+  });
+}
+
+function respawnAtCheckpoint() {
+  if (!checkpointState) {
+    reset();
+    return;
+  }
+
+  completed = false;
+  defeated = false;
+  collected = checkpointState.collected;
+  health = MAX_HEALTH;
+  soundEnergy = checkpointState.soundEnergy;
+  invulnerabilityTime = 1;
+  soundWaveCooldown = 0;
+  placePlayer(checkpointState.checkpoint.respawnX);
+  restoreNotes(checkpointState.notes);
+  resetThreats();
+  stageLight.intensity = 48;
+  neon.intensity = 26;
+  scene.background.set(0x050711);
+  ui.noteCount.textContent = `${collected} / ${TOTAL_NOTES}`;
+  updateHealth();
+  updateSoundEnergy();
+  ui.mission.textContent = "The sound beacon brings you back. The next shadow is ahead.";
+  ui.encore.hidden = true;
+  ui.gameOver.hidden = true;
+  ui.game.classList.remove("is-hit");
+  tone(165, 0.3, 0, "sine", 0.05);
+  tone(330, 0.34, 0.1, "triangle", 0.045);
+  clock.start();
+}
+
 function defeat() {
   defeated = true;
   keys.clear();
   velocityY = 0;
   player.userData.rig.visual.visible = true;
-  ui.mission.textContent = "The silence caught the last beat. Try the street again.";
-  ui.gameOverScore.textContent = `You recovered ${collected} of ${TOTAL_NOTES} lost notes before the silence closed in.`;
+  ui.mission.textContent = checkpointState
+    ? "The silence broke your rhythm. The sound beacon is still listening."
+    : "The silence caught the last beat. Try the street again.";
+  ui.gameOverScore.textContent = checkpointState
+    ? `The beacon remembers ${checkpointState.collected} of ${TOTAL_NOTES} lost notes.`
+    : `You recovered ${collected} of ${TOTAL_NOTES} lost notes before the silence closed in.`;
+  ui.retry.textContent = checkpointState ? "Return to checkpoint" : "Try again";
   tone(110, 0.38, 0, "sawtooth");
   tone(73, 0.58, 0.2, "triangle");
   setTimeout(() => {
@@ -884,41 +1055,16 @@ function reset() {
   collected = 0;
   health = MAX_HEALTH;
   soundEnergy = STARTING_SOUND_ENERGY;
+  checkpointState = null;
   invulnerabilityTime = 0;
-  velocityY = 0;
-  onGround = false;
-  landingBounce = 0;
   soundWaveCooldown = 0;
-  player.position.set(0, PLAYER_START_Y, PLAYER_Z);
-  player.rotation.set(0, 0, 0);
-  camera.position.x = 0;
-  camera.lookAt(0, 0.7, 0);
-  player.userData.rig.walkTime = 0;
-  player.userData.rig.visual.position.set(0, 0, 0);
-  player.userData.rig.visual.scale.set(1, 1, 1);
-  player.userData.rig.visual.visible = true;
-  const guitar = player.getObjectByName("guitar");
-  guitar.position.set(-0.22, -0.01, -0.34);
-  guitar.rotation.set(0, 0, 0.38);
-  notes.forEach((note) => {
-    note.collected = false;
-    note.group.visible = true;
-    note.group.position.y = note.originY;
-    note.group.scale.setScalar(1);
-    note.nearCuePlayed = false;
-    note.material.emissiveIntensity = 2.2;
-    note.halo.material.opacity = 0.12;
-    note.halo.scale.setScalar(1);
-    note.glow.intensity = 2.4;
-    note.glow.distance = 2.2;
+  placePlayer(0, 0);
+  restoreNotes();
+  resetThreats();
+  checkpoints.forEach((checkpoint) => {
+    checkpoint.activated = false;
+    checkpoint.activation = 0;
   });
-  shadows.forEach((shadow) => {
-    shadow.group.position.x = shadow.startX;
-    shadow.direction = shadow.initialDirection;
-    shadow.stunTime = 0;
-    shadow.hitFlash = 0;
-  });
-  soundWaves.splice(0).forEach(removeSoundWave);
   stageLight.intensity = 48;
   neon.intensity = 26;
   scene.background.set(0x050711);
@@ -928,6 +1074,7 @@ function reset() {
   ui.mission.textContent = "Collect notes to recharge E. Jump the shadows or break through with sound.";
   ui.encore.hidden = true;
   ui.gameOver.hidden = true;
+  ui.retry.textContent = "Try again";
   ui.game.classList.remove("is-hit");
   clock.start();
 }
@@ -1216,6 +1363,7 @@ function animate() {
   const elapsed = clock.elapsedTime;
   updatePlayer(delta);
   updateNotes(elapsed);
+  updateCheckpoints(elapsed);
   updateShadows(delta, elapsed);
   updateSoundWaves(delta);
   updateRain(delta);
@@ -1247,7 +1395,13 @@ ui.start.addEventListener("click", () => {
   tone(110, 0.45, 0, "sine");
 });
 ui.restart.addEventListener("click", reset);
-ui.retry.addEventListener("click", reset);
+ui.retry.addEventListener("click", () => {
+  if (checkpointState) {
+    respawnAtCheckpoint();
+  } else {
+    reset();
+  }
+});
 
 resize();
 animate();
