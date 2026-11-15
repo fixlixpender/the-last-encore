@@ -529,11 +529,17 @@ function createCheckpoint() {
 function createWorld() {
   createCity();
   addPlatform(15, -2.65, 44, 1.3, 0x121722);
-  addPlatform(6.2, 0.75, 3.4, 0.48);
-  addPlatform(11.7, 1.25, 3.1, 0.48);
-  addPlatform(17.4, 0.75, 3.8, 0.48);
-  addPlatform(23.2, 1.2, 3.2, 0.48);
-  addPlatform(28.2, 0.75, 3, 0.48);
+
+  [
+    { x: 6.2, top: 0.99, width: 2.8, height: 0.34 },
+    { x: 11.7, top: 1.49, width: 4.1, height: 0.72 },
+    { x: 17.4, top: 0.99, width: 3.2, height: 0.46 },
+    { x: 23.2, top: 1.44, width: 4.4, height: 0.82 },
+    { x: 28.2, top: 0.99, width: 2.5, height: 0.58 },
+  ].forEach(({ x, top, width, height }) => {
+    addPlatform(x, top - height / 2, width, height);
+  });
+
   addPlatform(34.2, -2.275, 7.4, 0.55, 0x21162a);
   createStage();
   createAtmosphere();
