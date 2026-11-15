@@ -108,6 +108,7 @@ let facing = 1;
 let audio = null;
 let masterGain = null;
 let masterVolume = 1;
+let audioWarmupComplete = false;
 let landingBounce = 0;
 let soundWaveCooldown = 0;
 let checkpointState = null;
@@ -859,6 +860,27 @@ createShadows();
 const rain = createRain();
 const clock = new THREE.Clock();
 
+function warmAudioEngine() {
+  if (!audio || audioWarmupComplete) return;
+  audioWarmupComplete = true;
+
+  const start = audio.currentTime;
+  ["sine", "triangle", "square", "sawtooth"].forEach((type, index) => {
+    const oscillator = audio.createOscillator();
+    const gain = audio.createGain();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(110 + index * 55, start);
+    gain.gain.setValueAtTime(0, start);
+    oscillator.connect(gain).connect(masterGain || audio.destination);
+    oscillator.start(start);
+    oscillator.stop(start + 0.012);
+    oscillator.addEventListener("ended", () => {
+      oscillator.disconnect();
+      gain.disconnect();
+    }, { once: true });
+  });
+}
+
 function ensureAudio() {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!audio && AudioContextClass) {
@@ -868,6 +890,7 @@ function ensureAudio() {
     masterGain.connect(audio.destination);
   }
   if (audio && audio.state === "suspended") audio.resume();
+  warmAudioEngine();
 }
 
 function setVolume(value) {
