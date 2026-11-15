@@ -14,6 +14,7 @@ const CHECKPOINT_X = 20.8;
 const PLAYER_Z = 2;
 const PLAYER_START_Y = -0.98;
 const GRAVITY = 18;
+const ENCORE_GUITAR_TARGET = new THREE.Vector3(0.26, 0.02, 0.55);
 
 const ui = {
   game: document.querySelector("#game"),
@@ -93,7 +94,7 @@ const shadows = [];
 const soundWaves = [];
 const checkpoints = [];
 const parallaxLayers = [];
-const atmosphere = { lights: [], fog: [], motes: null, windows: [] };
+const atmosphere = { lights: [], fog: [], motes: null, windows: [], beacons: [] };
 const keys = new Set();
 let started = false;
 let completed = false;
@@ -258,8 +259,8 @@ function createCity() {
       antenna.position.set(x + width * 0.18, height - 2.25, -10.55);
       beacon.position.set(x + width * 0.18, height - 1.55, -10.55);
       beacon.userData.phase = i * 0.7;
-      beacon.userData.isBeacon = true;
       farLayer.add(antenna, beacon);
+      atmosphere.beacons.push(beacon);
     }
   }
 
@@ -319,9 +320,8 @@ function updateParallax(elapsed) {
     layer.group.position.x = layer.baseX + camera.position.x * layer.factor;
   });
 
-  parallaxLayers[0]?.group.traverse((object) => {
-    if (!object.userData.isBeacon) return;
-    object.material.opacity = 0.3 + (Math.sin(elapsed * 2.4 + object.userData.phase) + 1) * 0.28;
+  atmosphere.beacons.forEach((beacon) => {
+    beacon.material.opacity = 0.3 + (Math.sin(elapsed * 2.4 + beacon.userData.phase) + 1) * 0.28;
   });
 }
 
@@ -1520,7 +1520,7 @@ function updateAtmosphere(delta, elapsed) {
 function animateEncore(elapsed) {
   if (!completed) return;
   const guitar = player.getObjectByName("guitar");
-  guitar.position.lerp(new THREE.Vector3(0.26, 0.02, 0.55), 0.055);
+  guitar.position.lerp(ENCORE_GUITAR_TARGET, 0.055);
   guitar.rotation.z = THREE.MathUtils.lerp(guitar.rotation.z, 0.28, 0.055);
   guitar.rotation.y = Math.sin(elapsed * 5) * 0.08;
   player.rotation.z = Math.sin(elapsed * 3.8) * 0.035;
