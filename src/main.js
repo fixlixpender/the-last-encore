@@ -6,6 +6,7 @@ const MAX_SOUND_ENERGY = 2;
 const STARTING_SOUND_ENERGY = 1;
 const PLAYER = { width: 0.82, height: 2.04, speed: 5.4, jump: 10.8 };
 const SHADOW = { width: 0.88, height: 0.82, speed: 1.35 };
+const PLATFORM_SENTINEL = { width: 0.64, height: 0.58, speed: 1.05 };
 const SOUND_WAVE = { cost: 1, range: 3.6, duration: 0.52, cooldown: 1.1, stun: 2.8 };
 const NOTE_PROXIMITY = { radius: 3.2, collectRadius: 0.9 };
 const DAMAGE = { invulnerability: 1.35, knockback: 1.55, bounce: 6.2 };
@@ -91,6 +92,7 @@ scene.add(stageLight, stageLight.target);
 const platforms = [];
 const notes = [];
 const shadows = [];
+const platformSentinels = [];
 const soundWaves = [];
 const checkpoints = [];
 const parallaxLayers = [];
@@ -835,6 +837,86 @@ function createShadows() {
   createShadowCreature(26.4, 24.7, 29.5, -1);
 }
 
+function createPlatformSentinel(startX, platformTop, patrolMin, patrolMax, direction = 1) {
+  const group = new THREE.Group();
+  const visual = new THREE.Group();
+  const shellMaterial = new THREE.MeshStandardMaterial({
+    color: 0x16243e,
+    emissive: 0x174d78,
+    emissiveIntensity: 1.25,
+    roughness: 0.4,
+    metalness: 0.48,
+    flatShading: true,
+  });
+  const accentMaterial = new THREE.MeshBasicMaterial({
+    color: 0xff58d0,
+    transparent: true,
+    opacity: 0.82,
+  });
+  const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xa8f8ff });
+
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.29, 0), shellMaterial);
+  core.scale.set(1.05, 0.88, 0.72);
+
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.025, 7, 36), accentMaterial);
+  ring.rotation.y = 0.42;
+
+  const leftFin = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.34, 3), shellMaterial);
+  const rightFin = leftFin.clone();
+  leftFin.position.x = -0.34;
+  rightFin.position.x = 0.34;
+  leftFin.rotation.z = -Math.PI / 2;
+  rightFin.rotation.z = Math.PI / 2;
+
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), eyeMaterial);
+  eye.scale.set(1.45, 0.52, 0.42);
+  eye.position.set(0.08, 0.03, 0.23);
+
+  const groundShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.38, 18),
+    new THREE.MeshBasicMaterial({ color: 0x04050b, transparent: true, opacity: 0.5 }),
+  );
+  groundShadow.rotation.x = -Math.PI / 2;
+  groundShadow.position.set(0, -PLATFORM_SENTINEL.height / 2 + 0.01, -0.24);
+  groundShadow.scale.set(1.25, 0.62, 1);
+
+  visual.add(core, ring, leftFin, rightFin, eye);
+  visual.traverse((object) => {
+    if (object.isMesh) object.castShadow = true;
+  });
+
+  const glow = new THREE.PointLight(0x4bdfff, 3.2, 3, 2);
+  glow.position.set(0, 0.08, 0.55);
+  group.add(groundShadow, visual, glow);
+  group.position.set(startX, platformTop + PLATFORM_SENTINEL.height / 2, PLAYER_Z - 0.02);
+  scene.add(group);
+
+  platformSentinels.push({
+    group,
+    visual,
+    ring,
+    fins: [leftFin, rightFin],
+    shellMaterial,
+    accentMaterial,
+    eyeMaterial,
+    glow,
+    startX,
+    baseY: group.position.y,
+    patrolMin,
+    patrolMax,
+    direction,
+    initialDirection: direction,
+    phase: startX * 0.41,
+    stunTime: 0,
+    hitFlash: 0,
+  });
+}
+
+function createPlatformSentinels() {
+  createPlatformSentinel(12.7, 1.49, 10.25, 13.1, -1);
+  createPlatformSentinel(22.1, 1.44, 21.55, 24.85, 1);
+}
+
 function createRain() {
   const dropCount = 280;
   const positions = new Float32Array(dropCount * 2 * 3);
@@ -864,6 +946,7 @@ createWorld();
 const player = createPlayer();
 createNotes();
 createShadows();
+createPlatformSentinels();
 const rain = createRain();
 const clock = new THREE.Clock();
 
@@ -973,22 +1056,24 @@ function emitSoundWave() {
   soundWaveCooldown = SOUND_WAVE.cooldown;
 
   let hits = 0;
-  shadows.forEach((shadow) => {
-    const dx = shadow.group.position.x - player.position.x;
-    const dy = shadow.group.position.y - player.position.y;
+  const stunTarget = (target) => {
+    const dx = target.group.position.x - player.position.x;
+    const dy = target.group.position.y - player.position.y;
     if (Math.hypot(dx, dy) > SOUND_WAVE.range) return;
-    shadow.stunTime = SOUND_WAVE.stun;
-    shadow.hitFlash = 0.35;
+    target.stunTime = SOUND_WAVE.stun;
+    target.hitFlash = 0.35;
     hits += 1;
-  });
+  };
+  shadows.forEach(stunTarget);
+  platformSentinels.forEach(stunTarget);
 
   tone(147, 0.34, 0, "sawtooth");
   tone(294, 0.3, 0.035, "triangle");
   if (hits > 0) {
     tone(523, 0.18, 0.08, "square");
     ui.mission.textContent = hits === 1
-      ? "The sound wave stunned a shadow. Move while the path is open."
-      : `The sound wave stunned ${hits} shadows. Move while the path is open.`;
+      ? "The sound wave stunned a silence creature. Move while the path is open."
+      : `The sound wave stunned ${hits} silence creatures. Move while the path is open.`;
   } else {
     ui.mission.textContent = "The sound wave fades into the empty street.";
   }
@@ -1076,6 +1161,14 @@ function resetThreats() {
     shadow.direction = shadow.initialDirection;
     shadow.stunTime = 0;
     shadow.hitFlash = 0;
+  });
+  platformSentinels.forEach((sentinel) => {
+    sentinel.group.position.set(sentinel.startX, sentinel.baseY, PLAYER_Z - 0.02);
+    sentinel.visual.position.y = 0;
+    sentinel.visual.scale.set(1, 1, 1);
+    sentinel.direction = sentinel.initialDirection;
+    sentinel.stunTime = 0;
+    sentinel.hitFlash = 0;
   });
   soundWaves.splice(0).forEach(removeSoundWave);
 }
@@ -1470,6 +1563,57 @@ function updateShadows(delta, elapsed) {
   });
 }
 
+function updatePlatformSentinels(delta, elapsed) {
+  platformSentinels.forEach((sentinel) => {
+    sentinel.stunTime = Math.max(0, sentinel.stunTime - delta);
+    sentinel.hitFlash = Math.max(0, sentinel.hitFlash - delta);
+    const stunned = sentinel.stunTime > 0;
+
+    if (started && !completed && !defeated && !stunned) {
+      sentinel.group.position.x += sentinel.direction * PLATFORM_SENTINEL.speed * delta;
+      if (sentinel.group.position.x <= sentinel.patrolMin) {
+        sentinel.group.position.x = sentinel.patrolMin;
+        sentinel.direction = 1;
+      } else if (sentinel.group.position.x >= sentinel.patrolMax) {
+        sentinel.group.position.x = sentinel.patrolMax;
+        sentinel.direction = -1;
+      }
+    }
+
+    const pulse = Math.sin(elapsed * 5.2 + sentinel.phase);
+    sentinel.visual.position.y = stunned ? -0.16 : pulse * 0.07;
+    sentinel.visual.rotation.z = stunned ? pulse * 0.08 : pulse * 0.045;
+    sentinel.visual.scale.set(
+      stunned ? 1.12 : 1 + Math.abs(pulse) * 0.035,
+      stunned ? 0.58 : 1 - Math.abs(pulse) * 0.025,
+      1,
+    );
+    sentinel.ring.rotation.z += delta * (stunned ? 0.7 : 2.5);
+    sentinel.fins[0].rotation.z = -Math.PI / 2 - pulse * 0.12;
+    sentinel.fins[1].rotation.z = Math.PI / 2 + pulse * 0.12;
+    sentinel.shellMaterial.emissiveIntensity = stunned ? 2.8 + sentinel.hitFlash * 7 : 1.25;
+    sentinel.accentMaterial.color.set(stunned ? 0x62efff : 0xff58d0);
+    sentinel.eyeMaterial.color.set(stunned ? 0xff77d9 : 0xa8f8ff);
+    sentinel.glow.color.set(stunned ? 0xff55cf : 0x4bdfff);
+    sentinel.glow.intensity = stunned ? 5.5 + sentinel.hitFlash * 10 : 3.2;
+
+    if (!started || completed || defeated || stunned) return;
+    const centerY = sentinel.group.position.y + sentinel.visual.position.y;
+    const playerLeft = player.position.x - PLAYER.width / 2;
+    const playerRight = player.position.x + PLAYER.width / 2;
+    const playerBottom = player.position.y - PLAYER.height / 2;
+    const playerTop = player.position.y + PLAYER.height / 2;
+    const sentinelLeft = sentinel.group.position.x - PLATFORM_SENTINEL.width / 2;
+    const sentinelRight = sentinel.group.position.x + PLATFORM_SENTINEL.width / 2;
+    const sentinelBottom = centerY - PLATFORM_SENTINEL.height / 2;
+    const sentinelTop = centerY + PLATFORM_SENTINEL.height / 2;
+    const overlaps = playerRight > sentinelLeft && playerLeft < sentinelRight
+      && playerTop > sentinelBottom && playerBottom < sentinelTop - 0.04;
+
+    if (overlaps) takeDamage(sentinel);
+  });
+}
+
 function updateRain(delta) {
   const positions = rain.geometry.getAttribute("position");
   for (let i = 0; i < positions.count; i += 2) {
@@ -1563,6 +1707,7 @@ function animate() {
   updateNotes(elapsed);
   updateCheckpoints(elapsed);
   updateShadows(delta, elapsed);
+  updatePlatformSentinels(delta, elapsed);
   updateSoundWaves(delta);
   updateRain(delta);
   const targetX = THREE.MathUtils.clamp(player.position.x + 2, 0, 31.5);
