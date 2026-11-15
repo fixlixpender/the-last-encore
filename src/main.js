@@ -732,6 +732,7 @@ function addNote(x, y, phase) {
     originY: y,
     collected: false,
     nearCuePlayed: false,
+    visuals: [head, stem, flag, halo],
     material: noteMaterial,
     halo,
     glow,
@@ -1048,14 +1049,17 @@ function placePlayer(x, cameraX = THREE.MathUtils.clamp(x + 2, 0, 31.5)) {
 function restoreNotes(noteStates = null) {
   notes.forEach((note, index) => {
     note.collected = noteStates ? noteStates[index] : false;
-    note.group.visible = !note.collected;
+    note.group.visible = true;
+    note.visuals.forEach((visual) => {
+      visual.visible = !note.collected;
+    });
     note.group.position.y = note.originY;
     note.group.scale.setScalar(1);
     note.nearCuePlayed = false;
     note.material.emissiveIntensity = 2.2;
     note.halo.material.opacity = 0.12;
     note.halo.scale.setScalar(1);
-    note.glow.intensity = 2.4;
+    note.glow.intensity = note.collected ? 0 : 2.4;
     note.glow.distance = 2.2;
   });
 }
@@ -1383,7 +1387,10 @@ function updateNotes(elapsed) {
 
     if (started && !completed && !defeated && distance < NOTE_PROXIMITY.collectRadius) {
       note.collected = true;
-      note.group.visible = false;
+      note.visuals.forEach((visual) => {
+        visual.visible = false;
+      });
+      note.glow.intensity = 0;
       collected += 1;
       const previousEnergy = soundEnergy;
       soundEnergy = Math.min(MAX_SOUND_ENERGY, soundEnergy + 1);
