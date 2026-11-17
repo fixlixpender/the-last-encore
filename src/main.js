@@ -19,7 +19,23 @@ const CHECKPOINT_X = 20.8;
 const PLAYER_Z = 2;
 const PLAYER_START_Y = -0.98;
 const GRAVITY = 18;
-const ENCORE_GUITAR_TARGET = new THREE.Vector3(0.26, 0.02, 0.55);
+const GUITAR_CARRY_POSITION = new THREE.Vector3(-0.22, -0.01, -0.34);
+const GUITAR_PLAY_POSITION = new THREE.Vector3(0.15, 0, 0.44);
+const ENCORE_GUITAR_PATH = new THREE.CubicBezierCurve3(
+  GUITAR_CARRY_POSITION,
+  new THREE.Vector3(-0.84, 0.18, -0.44),
+  new THREE.Vector3(-0.67, 0.23, 0.55),
+  GUITAR_PLAY_POSITION,
+);
+const ENCORE_REACH_END = 0.26;
+const ENCORE_LIFT_END = 1.24;
+const ENCORE_SOLO_START = 1.3;
+const ENCORE_PANEL_TIME = 2.65;
+const ARM_REST_DIRECTION = new THREE.Vector3(0, -1, 0);
+const GUITAR_NECK_GRIP = new THREE.Vector3(0, 0.46, 0.01);
+const GUITAR_STRINGS_GRIP = new THREE.Vector3(0.02, -0.06, 0.13);
+const encoreArmDirection = new THREE.Vector3();
+const encoreArmAim = new THREE.Quaternion();
 
 const ui = {
   game: document.querySelector("#game"),
@@ -153,6 +169,13 @@ let exitHintShown = false;
 let paused = false;
 let gameTime = 0;
 let encoreStartTime = 0;
+let encoreSoloStarted = false;
+let encoreEntryYaw = 0;
+let encoreEntryLean = 0;
+const encoreEntryShoulders = {
+  back: new THREE.Quaternion(),
+  front: new THREE.Quaternion(),
+};
 const touchPreferred = matchMedia("(hover: none), (pointer: coarse)").matches;
 
 function hideGuidance() {
@@ -634,7 +657,7 @@ function createGuitar() {
   bridge.position.set(0.02, -0.3, 0.11);
   guitar.add(lower, upper, neck, head, soundHole, bridge);
   guitar.rotation.z = 0.38;
-  guitar.position.set(-0.22, -0.01, -0.34);
+  guitar.position.copy(GUITAR_CARRY_POSITION);
   guitar.name = "guitar";
   return guitar;
 }
@@ -1223,12 +1246,17 @@ function placePlayer(x, cameraX = THREE.MathUtils.clamp(x + 2, 0, CAMERA_MAX_X))
   player.rotation.set(0, 0, 0);
   camera.position.x = cameraX;
   camera.lookAt(cameraX, 0.7, 0);
+  const { visual, guitar, frontArm, backArm } = player.userData.rig;
   player.userData.rig.walkTime = 0;
-  player.userData.rig.visual.position.set(0, 0, 0);
-  player.userData.rig.visual.scale.set(1, 1, 1);
-  player.userData.rig.visual.visible = true;
-  const guitar = player.getObjectByName("guitar");
-  guitar.position.set(-0.22, -0.01, -0.34);
+  visual.position.set(0, 0, 0);
+  visual.rotation.set(0, 0, 0);
+  visual.scale.set(1, 1, 1);
+  visual.visible = true;
+  [frontArm, backArm].forEach((arm) => {
+    arm.rotation.set(0, 0, 0);
+    arm.scale.set(1, 1, 1);
+  });
+  guitar.position.copy(GUITAR_CARRY_POSITION);
   guitar.rotation.set(0, 0, 0.38);
 }
 
@@ -1460,6 +1488,13 @@ function finish() {
   keys.clear();
   releaseTouchMovement();
   encoreStartTime = gameTime;
+  encoreSoloStarted = false;
+  const { visual, frontArm, backArm } = player.userData.rig;
+  visual.visible = true;
+  encoreEntryYaw = player.rotation.y;
+  encoreEntryLean = visual.rotation.z;
+  encoreEntryShoulders.back.copy(backArm.quaternion);
+  encoreEntryShoulders.front.copy(frontArm.quaternion);
   resetStageLighting();
   ui.mission.textContent = "The silence breaks. The district can hear you.";
   hideGuidance();
@@ -1467,8 +1502,6 @@ function finish() {
   ui.pauseButton.hidden = true;
   ui.game.classList.remove("is-active", "is-paused");
   ui.encoreScore.textContent = `You carried ${collected} of ${TOTAL_NOTES} lost notes to the stage.`;
-  solo();
-  setTimeout(() => (ui.encore.hidden = false), 1900);
 }
 
 function updatePlayer(delta) {
@@ -1773,6 +1806,15 @@ function updateAtmosphere(delta, elapsed) {
   positions.needsUpdate = true;
 }
 
+function aimEncoreArm(arm, start, guitar, grip, reach) {
+  encoreArmDirection.copy(grip).applyQuaternion(guitar.quaternion)
+    .add(guitar.position).sub(arm.position);
+  const length = encoreArmDirection.length();
+  encoreArmAim.setFromUnitVectors(ARM_REST_DIRECTION, encoreArmDirection.normalize());
+  arm.quaternion.copy(start).slerp(encoreArmAim, reach);
+  arm.scale.y = THREE.MathUtils.lerp(1, length / 0.49, reach);
+}
+
 function animateEncore(elapsed) {
   if (!completed) return;
   const sequenceTime = Math.max(0, elapsed - encoreStartTime);
@@ -1792,11 +1834,28 @@ function animateEncore(elapsed) {
   neon.intensity = THREE.MathUtils.lerp(26, 58, overallProgress);
   scene.background.copy(nightBackground).lerp(encoreBackground, overallProgress);
 
-  const guitar = player.getObjectByName("guitar");
-  guitar.position.lerp(ENCORE_GUITAR_TARGET, 0.055);
-  guitar.rotation.z = THREE.MathUtils.lerp(guitar.rotation.z, 0.28, 0.055);
-  guitar.rotation.y = Math.sin(elapsed * 5) * 0.08;
-  player.rotation.z = Math.sin(elapsed * 3.8) * 0.035;
+  const { visual, guitar, frontArm, backArm } = player.userData.rig;
+  const turn = THREE.MathUtils.smoothstep(sequenceTime, 0, 0.52);
+  // Approach the playing pose from the nearest side, even when entering from the right.
+  const facingAngle = encoreEntryYaw > Math.PI - 0.3 ? Math.PI * 2 - 0.3 : -0.3;
+  player.rotation.y = THREE.MathUtils.lerp(encoreEntryYaw, facingAngle, turn);
+  visual.rotation.z = THREE.MathUtils.lerp(encoreEntryLean, 0, turn);
+  const lift = THREE.MathUtils.smoothstep(sequenceTime, ENCORE_REACH_END, ENCORE_LIFT_END);
+  const reach = THREE.MathUtils.smoothstep(sequenceTime, 0, ENCORE_REACH_END);
+  const support = THREE.MathUtils.smoothstep(sequenceTime, 0.82, ENCORE_LIFT_END);
+
+  ENCORE_GUITAR_PATH.getPoint(lift, guitar.position);
+  guitar.rotation.z = THREE.MathUtils.lerp(0.38, 1.03, lift);
+  aimEncoreArm(backArm, encoreEntryShoulders.back, guitar, GUITAR_NECK_GRIP, reach);
+  aimEncoreArm(frontArm, encoreEntryShoulders.front, guitar, GUITAR_STRINGS_GRIP, support);
+
+  if (!encoreSoloStarted && sequenceTime >= ENCORE_SOLO_START) {
+    encoreSoloStarted = true;
+    solo();
+  }
+  if (sequenceTime >= ENCORE_PANEL_TIME && ui.encore.hidden) {
+    ui.encore.hidden = false;
+  }
 }
 
 function resize() {
