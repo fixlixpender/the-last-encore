@@ -20,19 +20,21 @@ const PLAYER_Z = 2;
 const PLAYER_START_Y = -0.98;
 const GRAVITY = 18;
 const GUITAR_CARRY_POSITION = new THREE.Vector3(-0.22, -0.01, -0.34);
-const GUITAR_PLAY_POSITION = new THREE.Vector3(0.15, 0, 0.44);
+const GUITAR_SIDE_POSITION = new THREE.Vector3(-0.53, 0.06, -0.07);
+const GUITAR_PLAY_POSITION = new THREE.Vector3(0.15, 0, 0.48);
 const ENCORE_GUITAR_PATH = new THREE.CubicBezierCurve3(
-  GUITAR_CARRY_POSITION,
-  new THREE.Vector3(-0.84, 0.18, -0.44),
-  new THREE.Vector3(-0.67, 0.23, 0.55),
+  GUITAR_SIDE_POSITION,
+  new THREE.Vector3(-0.72, 0.12, 0.13),
+  new THREE.Vector3(-0.63, 0.15, 0.55),
   GUITAR_PLAY_POSITION,
 );
-const ENCORE_REACH_END = 0.26;
+const ENCORE_REACH_END = 0.34;
 const ENCORE_LIFT_END = 1.24;
 const ENCORE_SOLO_START = 1.3;
 const ENCORE_PANEL_TIME = 2.65;
 const ARM_REST_DIRECTION = new THREE.Vector3(0, -1, 0);
-const GUITAR_NECK_GRIP = new THREE.Vector3(0, 0.46, 0.01);
+const GUITAR_NECK_GRIP = new THREE.Vector3(0, 0.46, 0.12);
+const ENCORE_HAND_APPROACH = new THREE.Vector3(-0.46, 0.35, 0.32);
 const GUITAR_STRINGS_GRIP = new THREE.Vector3(0.02, -0.06, 0.13);
 const encoreArmDirection = new THREE.Vector3();
 const encoreArmAim = new THREE.Quaternion();
@@ -172,6 +174,7 @@ let encoreStartTime = 0;
 let encoreSoloStarted = false;
 let encoreEntryYaw = 0;
 let encoreEntryLean = 0;
+let encoreEntryGuitarRoll = 0;
 const encoreEntryShoulders = {
   back: new THREE.Quaternion(),
   front: new THREE.Quaternion(),
@@ -1489,10 +1492,11 @@ function finish() {
   releaseTouchMovement();
   encoreStartTime = gameTime;
   encoreSoloStarted = false;
-  const { visual, frontArm, backArm } = player.userData.rig;
+  const { visual, guitar, frontArm, backArm } = player.userData.rig;
   visual.visible = true;
   encoreEntryYaw = player.rotation.y;
   encoreEntryLean = visual.rotation.z;
+  encoreEntryGuitarRoll = guitar.rotation.z;
   encoreEntryShoulders.back.copy(backArm.quaternion);
   encoreEntryShoulders.front.copy(frontArm.quaternion);
   resetStageLighting();
@@ -1806,9 +1810,11 @@ function updateAtmosphere(delta, elapsed) {
   positions.needsUpdate = true;
 }
 
-function aimEncoreArm(arm, start, guitar, grip, reach) {
+function aimEncoreArm(arm, start, guitar, grip, reach, approachWeight = 0) {
   encoreArmDirection.copy(grip).applyQuaternion(guitar.quaternion)
-    .add(guitar.position).sub(arm.position);
+    .add(guitar.position)
+    .lerp(ENCORE_HAND_APPROACH, approachWeight)
+    .sub(arm.position);
   const length = encoreArmDirection.length();
   encoreArmAim.setFromUnitVectors(ARM_REST_DIRECTION, encoreArmDirection.normalize());
   arm.quaternion.copy(start).slerp(encoreArmAim, reach);
@@ -1835,18 +1841,26 @@ function animateEncore(elapsed) {
   scene.background.copy(nightBackground).lerp(encoreBackground, overallProgress);
 
   const { visual, guitar, frontArm, backArm } = player.userData.rig;
-  const turn = THREE.MathUtils.smoothstep(sequenceTime, 0, 0.52);
-  // Approach the playing pose from the nearest side, even when entering from the right.
-  const facingAngle = encoreEntryYaw > Math.PI - 0.3 ? Math.PI * 2 - 0.3 : -0.3;
-  player.rotation.y = THREE.MathUtils.lerp(encoreEntryYaw, facingAngle, turn);
+  const turn = THREE.MathUtils.smoothstep(sequenceTime, 0, ENCORE_REACH_END);
+  const facingAngle = -0.12;
+  const facingDelta = THREE.MathUtils.euclideanModulo(facingAngle - encoreEntryYaw + Math.PI, Math.PI * 2) - Math.PI;
+  player.rotation.y = encoreEntryYaw + facingDelta * turn;
   visual.rotation.z = THREE.MathUtils.lerp(encoreEntryLean, 0, turn);
-  const lift = THREE.MathUtils.smoothstep(sequenceTime, ENCORE_REACH_END, ENCORE_LIFT_END);
-  const reach = THREE.MathUtils.smoothstep(sequenceTime, 0, ENCORE_REACH_END);
-  const support = THREE.MathUtils.smoothstep(sequenceTime, 0.82, ENCORE_LIFT_END);
 
-  ENCORE_GUITAR_PATH.getPoint(lift, guitar.position);
-  guitar.rotation.z = THREE.MathUtils.lerp(0.38, 1.03, lift);
-  aimEncoreArm(backArm, encoreEntryShoulders.back, guitar, GUITAR_NECK_GRIP, reach);
+  const lift = THREE.MathUtils.smoothstep(sequenceTime, ENCORE_REACH_END, ENCORE_LIFT_END);
+  const reach = THREE.MathUtils.smoothstep(sequenceTime, 0, 0.17);
+  const grip = THREE.MathUtils.smoothstep(sequenceTime, 0.17, ENCORE_REACH_END);
+  const support = THREE.MathUtils.smoothstep(sequenceTime, 0.78, ENCORE_LIFT_END);
+
+  if (sequenceTime < ENCORE_REACH_END) {
+    // The turn brings the guitar beside the shoulder, where the hand can meet its front face.
+    guitar.position.lerpVectors(GUITAR_CARRY_POSITION, GUITAR_SIDE_POSITION, turn);
+    guitar.rotation.z = THREE.MathUtils.lerp(encoreEntryGuitarRoll, 0.2, turn);
+  } else {
+    ENCORE_GUITAR_PATH.getPoint(lift, guitar.position);
+    guitar.rotation.z = THREE.MathUtils.lerp(0.2, 1.12, lift);
+  }
+  aimEncoreArm(backArm, encoreEntryShoulders.back, guitar, GUITAR_NECK_GRIP, reach, 1 - grip);
   aimEncoreArm(frontArm, encoreEntryShoulders.front, guitar, GUITAR_STRINGS_GRIP, support);
 
   if (!encoreSoloStarted && sequenceTime >= ENCORE_SOLO_START) {
