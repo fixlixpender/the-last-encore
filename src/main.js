@@ -48,10 +48,11 @@ const ENCORE_SOLO_NOTES = [
 ];
 const ARM_REST_DIRECTION = new THREE.Vector3(0, -1, 0);
 const GUITAR_NECK_GRIP = new THREE.Vector3(0, 0.46, 0.12);
-const GUITAR_STRINGS_GRIP = new THREE.Vector3(0.02, -0.06, 0.13);
+const GUITAR_STRINGS_GRIP = new THREE.Vector3(0.02, -0.06, 0.26);
 const encoreArmDirection = new THREE.Vector3();
 const encoreArmAim = new THREE.Quaternion();
 const encoreSparkOrigin = new THREE.Vector3();
+const encoreStringsGrip = new THREE.Vector3();
 
 const ui = {
   game: document.querySelector("#game"),
@@ -2024,22 +2025,24 @@ function animateEncore(delta, elapsed) {
     guitar.rotation.z = THREE.MathUtils.lerp(0.2, -1.12, lift);
   }
 
-  aimEncoreArm(frontArm, encoreEntryShoulders.front, guitar, GUITAR_NECK_GRIP, reach);
-  aimEncoreArm(backArm, encoreEntryShoulders.back, guitar, GUITAR_STRINGS_GRIP, support);
-
+  let strum = 0;
   if (!encoreSoloStarted && sequenceTime >= ENCORE_SOLO_START) {
     encoreSoloStarted = true;
     solo();
   }
   if (encoreSoloStarted) {
     updateEncoreSolo(sequenceTime, guitar);
-    let strum = 0;
     ENCORE_SOLO_NOTES.forEach((note) => {
       strum += encoreNotePulse(soloTime, note) * note.strum;
     });
-    backArm.rotateZ(strum * 0.11);
     guitar.rotation.z += strum * 0.018;
   }
+
+  // Keep the strumming hand on a plane in front of the guitar instead of swinging through its body.
+  encoreStringsGrip.copy(GUITAR_STRINGS_GRIP);
+  encoreStringsGrip.y += strum * 0.075;
+  aimEncoreArm(frontArm, encoreEntryShoulders.front, guitar, GUITAR_NECK_GRIP, reach);
+  aimEncoreArm(backArm, encoreEntryShoulders.back, guitar, encoreStringsGrip, support);
   updateEncoreSparks(delta);
   if (sequenceTime >= ENCORE_PANEL_TIME && ui.encore.hidden) {
     ui.encore.hidden = false;
