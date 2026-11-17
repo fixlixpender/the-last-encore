@@ -149,7 +149,7 @@ function hideCheckpointNotice() {
 function showCheckpointNotice() {
   clearTimeout(checkpointNoticeTimer);
   ui.checkpointNotice.hidden = false;
-  checkpointNoticeTimer = setTimeout(hideCheckpointNotice, 3600);
+  checkpointNoticeTimer = setTimeout(hideCheckpointNotice, 2400);
 }
 
 function pauseGame() {
@@ -715,14 +715,31 @@ function createPlayer() {
 function addNote(x, y, phase) {
   const group = new THREE.Group();
   const noteMaterial = new THREE.MeshStandardMaterial({
-    color: 0xff4ecb,
+    color: 0xff58cc,
     emissive: 0xff168e,
     emissiveIntensity: 2.2,
-    roughness: 0.28,
+    roughness: 0.24,
+    metalness: 0.12,
   });
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), noteMaterial);
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.72, 10), noteMaterial);
-  const flag = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.035, 8, 18, Math.PI * 1.05), noteMaterial);
+  const highlightMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffd5f3,
+    transparent: true,
+    opacity: 0.88,
+    depthWrite: false,
+  });
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 14), noteMaterial);
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.034, 0.82, 12), noteMaterial);
+  const highlight = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 8), highlightMaterial);
+
+  const flagShape = new THREE.Shape();
+  flagShape.moveTo(0, 0);
+  flagShape.lineTo(0.075, -0.01);
+  flagShape.bezierCurveTo(0.38, -0.055, 0.46, -0.25, 0.29, -0.41);
+  flagShape.bezierCurveTo(0.3, -0.23, 0.17, -0.16, 0.02, -0.17);
+  flagShape.closePath();
+  const flag = new THREE.Mesh(new THREE.ShapeGeometry(flagShape, 18), noteMaterial);
+
   const haloMaterial = new THREE.MeshBasicMaterial({
     color: 0xff55cf,
     transparent: true,
@@ -730,16 +747,21 @@ function addNote(x, y, phase) {
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
-  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.022, 8, 48), haloMaterial);
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.018, 8, 48), haloMaterial);
   const glow = new THREE.PointLight(0xff3fbf, 2.4, 2.2, 2);
-  head.scale.set(1.25, 0.82, 0.6);
-  head.rotation.z = -0.35;
-  stem.position.set(0.22, 0.31, 0);
-  flag.position.set(0.06, 0.65, 0);
-  flag.rotation.z = -0.4;
-  halo.position.y = 0.24;
+
+  head.scale.set(1.34, 0.74, 0.52);
+  head.rotation.z = -0.3;
+  head.position.set(-0.055, -0.08, 0);
+  stem.position.set(0.19, 0.32, 0);
+  flag.position.set(0.19, 0.73, 0.025);
+  highlight.scale.set(1.5, 0.62, 0.28);
+  highlight.rotation.z = -0.3;
+  highlight.position.set(-0.13, -0.025, 0.105);
+  halo.position.y = 0.22;
   glow.position.set(0, 0.24, 0.35);
-  group.add(head, stem, flag, halo, glow);
+
+  group.add(head, stem, flag, highlight, halo, glow);
   group.position.set(x, y, PLAYER_Z + 0.1);
   scene.add(group);
   notes.push({
@@ -748,7 +770,7 @@ function addNote(x, y, phase) {
     originY: y,
     collected: false,
     nearCuePlayed: false,
-    visuals: [head, stem, flag, halo],
+    visuals: [head, stem, flag, highlight, halo],
     material: noteMaterial,
     halo,
     glow,
