@@ -567,54 +567,59 @@ input:focus-visible {
 .checkpoint-notice {
   position: fixed;
   z-index: 7;
-  top: 42%;
+  top: max(16px, env(safe-area-inset-top));
   left: 50%;
   display: flex;
-  width: min(430px, calc(100% - 40px));
-  padding: 18px 22px;
-  transform: translate(-50%, -50%);
-  flex-direction: column;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  min-height: 36px;
+  padding: 8px 14px;
+  transform: translateX(-50%);
   align-items: center;
-  gap: 4px;
-  border: 1px solid rgb(255 85 207 / 45%);
-  border-radius: 3px;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgb(255 85 207 / 38%);
+  border-radius: 999px;
   color: #effbff;
-  background: linear-gradient(135deg, rgb(7 13 24 / 94%), rgb(42 10 42 / 91%));
-  box-shadow: 0 0 48px rgb(255 85 207 / 20%), inset 0 0 36px rgb(83 232 255 / 6%);
-  text-align: center;
+  background: linear-gradient(135deg, rgb(7 13 24 / 91%), rgb(42 10 42 / 88%));
+  box-shadow: 0 0 22px rgb(255 85 207 / 14%), inset 0 0 18px rgb(83 232 255 / 5%);
+  white-space: nowrap;
   pointer-events: none;
-  backdrop-filter: blur(12px);
-  animation: checkpoint-in 320ms ease-out;
+  backdrop-filter: blur(10px);
+  animation: checkpoint-in 220ms ease-out;
 }
 
-.checkpoint-notice span,
-.checkpoint-notice small {
+.checkpoint-notice span {
   color: #7eeeff;
   font-family: "Barlow Condensed", sans-serif;
-  font-size: 0.62rem;
+  font-size: 0.56rem;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+.checkpoint-notice span::after {
+  margin-left: 8px;
+  color: #ff58cf;
+  content: "•";
 }
 
 .checkpoint-notice strong {
-  font: 700 clamp(1.65rem, 4vw, 2.45rem) "Barlow Condensed", sans-serif;
-  letter-spacing: 0.045em;
-  text-shadow: 0 0 22px rgb(255 85 207 / 42%);
+  font: 700 0.82rem "Barlow Condensed", sans-serif;
+  letter-spacing: 0.055em;
+  text-shadow: 0 0 14px rgb(255 85 207 / 38%);
   text-transform: uppercase;
 }
 
 .checkpoint-notice small {
-  color: #95a7ba;
-  font-family: Inter, sans-serif;
-  font-size: 0.5rem;
-  letter-spacing: 0.1em;
+  display: none;
 }
 
 @keyframes checkpoint-in {
   from {
     opacity: 0;
-    transform: translate(-50%, calc(-50% + 12px)) scale(0.96);
+    translate: 0 -8px;
+    scale: 0.96;
   }
 }
 
@@ -842,7 +847,13 @@ kbd {
   }
 
   .checkpoint-notice {
-    padding: 15px 16px;
+    top: 126px;
+    right: 14px;
+    left: auto;
+    max-width: calc(100% - 28px);
+    min-height: 32px;
+    padding: 7px 11px;
+    transform: none;
   }
 }
 
