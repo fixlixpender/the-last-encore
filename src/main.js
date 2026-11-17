@@ -21,7 +21,7 @@ const PLAYER_START_Y = -0.98;
 const GRAVITY = 18;
 const GUITAR_CARRY_POSITION = new THREE.Vector3(-0.22, -0.01, -0.34);
 const GUITAR_SIDE_POSITION = new THREE.Vector3(-0.53, 0.06, -0.07);
-const GUITAR_PLAY_POSITION = new THREE.Vector3(0.15, 0, 0.48);
+const GUITAR_PLAY_POSITION = new THREE.Vector3(0.14, -0.01, 0.36);
 const ENCORE_GUITAR_PATH = new THREE.CubicBezierCurve3(
   GUITAR_SIDE_POSITION,
   new THREE.Vector3(-0.72, 0.12, 0.13),
@@ -34,7 +34,7 @@ const ENCORE_SOLO_START = 1.3;
 const ENCORE_PANEL_TIME = 2.65;
 const ARM_REST_DIRECTION = new THREE.Vector3(0, -1, 0);
 const GUITAR_NECK_GRIP = new THREE.Vector3(0, 0.46, 0.12);
-const ENCORE_HAND_APPROACH = new THREE.Vector3(-0.46, 0.35, 0.32);
+const ENCORE_HAND_APPROACH = new THREE.Vector3(0.42, 0.35, 0.32);
 const GUITAR_STRINGS_GRIP = new THREE.Vector3(0.02, -0.06, 0.13);
 const encoreArmDirection = new THREE.Vector3();
 const encoreArmAim = new THREE.Quaternion();
@@ -1858,10 +1858,11 @@ function animateEncore(elapsed) {
     guitar.rotation.z = THREE.MathUtils.lerp(encoreEntryGuitarRoll, 0.2, turn);
   } else {
     ENCORE_GUITAR_PATH.getPoint(lift, guitar.position);
-    guitar.rotation.z = THREE.MathUtils.lerp(0.2, 1.12, lift);
+    // Negative rotation brings the neck towards the character's face (+X).
+    guitar.rotation.z = THREE.MathUtils.lerp(0.2, -1.12, lift);
   }
-  aimEncoreArm(backArm, encoreEntryShoulders.back, guitar, GUITAR_NECK_GRIP, reach, 1 - grip);
-  aimEncoreArm(frontArm, encoreEntryShoulders.front, guitar, GUITAR_STRINGS_GRIP, support);
+  aimEncoreArm(frontArm, encoreEntryShoulders.front, guitar, GUITAR_NECK_GRIP, reach, 1 - grip);
+  aimEncoreArm(backArm, encoreEntryShoulders.back, guitar, GUITAR_STRINGS_GRIP, support);
 
   if (!encoreSoloStarted && sequenceTime >= ENCORE_SOLO_START) {
     encoreSoloStarted = true;
