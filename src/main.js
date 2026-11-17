@@ -35,12 +35,23 @@ const ENCORE_CLEAR_END = 0.88;
 const ENCORE_LIFT_END = 1.58;
 const ENCORE_HEAD_TURN_END = 2.08;
 const ENCORE_SOLO_START = 2.14;
-const ENCORE_PANEL_TIME = 3.5;
+const ENCORE_PANEL_TIME = 3.72;
+const ENCORE_SPARK_COUNT = 72;
+const ENCORE_SOLO_NOTES = [
+  { time: 0, frequency: 196, light: 0, color: 0x4de8ff, strum: 1, type: "sawtooth" },
+  { time: 0.16, frequency: 247, light: 1, color: 0xff3fbf, strum: -1, type: "triangle" },
+  { time: 0.32, frequency: 294, light: 2, color: 0xffd2ee, strum: 1, type: "triangle" },
+  { time: 0.48, frequency: 392, light: 0, color: 0x4de8ff, strum: -1, type: "sawtooth" },
+  { time: 0.64, frequency: 494, light: 1, color: 0xff3fbf, strum: 1, type: "triangle" },
+  { time: 0.8, frequency: 587, light: 2, color: 0xffd2ee, strum: -1, type: "triangle" },
+  { time: 0.96, frequency: 784, light: 1, color: 0xff7bd8, strum: 1, type: "sawtooth" },
+];
 const ARM_REST_DIRECTION = new THREE.Vector3(0, -1, 0);
 const GUITAR_NECK_GRIP = new THREE.Vector3(0, 0.46, 0.12);
 const GUITAR_STRINGS_GRIP = new THREE.Vector3(0.02, -0.06, 0.13);
 const encoreArmDirection = new THREE.Vector3();
 const encoreArmAim = new THREE.Quaternion();
+const encoreSparkOrigin = new THREE.Vector3();
 
 const ui = {
   game: document.querySelector("#game"),
@@ -175,6 +186,8 @@ let paused = false;
 let gameTime = 0;
 let encoreStartTime = 0;
 let encoreSoloStarted = false;
+let encoreSoloNoteIndex = 0;
+let encoreSparks = null;
 let encoreEntryYaw = 0;
 let encoreEntryLean = 0;
 let encoreEntryGuitarRoll = 0;
@@ -466,6 +479,112 @@ function createStage() {
   });
 }
 
+function createEncoreSparks() {
+  const positions = new Float32Array(ENCORE_SPARK_COUNT * 3);
+  const colors = new Float32Array(ENCORE_SPARK_COUNT * 3);
+  const baseColors = new Float32Array(ENCORE_SPARK_COUNT * 3);
+  const velocities = Array.from({ length: ENCORE_SPARK_COUNT }, () => new THREE.Vector3());
+  const life = new Float32Array(ENCORE_SPARK_COUNT);
+  const geometry = new THREE.BufferGeometry();
+
+  for (let index = 0; index < ENCORE_SPARK_COUNT; index += 1) {
+    positions[index * 3 + 1] = -50;
+  }
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
+  const points = new THREE.Points(
+    geometry,
+    new THREE.PointsMaterial({
+      size: 0.085,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+  );
+  points.renderOrder = 7;
+  scene.add(points);
+  return { points, velocities, life, baseColors, cursor: 0 };
+}
+
+function burstEncoreSparks(origin, color) {
+  if (!encoreSparks) return;
+  const positions = encoreSparks.points.geometry.getAttribute("position");
+  const colors = encoreSparks.points.geometry.getAttribute("color");
+  const sparkColor = new THREE.Color(color);
+
+  for (let spark = 0; spark < 10; spark += 1) {
+    const index = encoreSparks.cursor;
+    encoreSparks.cursor = (encoreSparks.cursor + 1) % ENCORE_SPARK_COUNT;
+    const angle = 0.18 + (spark / 9) * (Math.PI - 0.36);
+    const speed = 1.25 + Math.random() * 1.15;
+    positions.setXYZ(
+      index,
+      origin.x + (Math.random() - 0.5) * 0.18,
+      origin.y + (Math.random() - 0.5) * 0.12,
+      origin.z + 0.12 + (Math.random() - 0.5) * 0.16,
+    );
+    colors.setXYZ(index, sparkColor.r, sparkColor.g, sparkColor.b);
+    encoreSparks.baseColors[index * 3] = sparkColor.r;
+    encoreSparks.baseColors[index * 3 + 1] = sparkColor.g;
+    encoreSparks.baseColors[index * 3 + 2] = sparkColor.b;
+    encoreSparks.velocities[index].set(
+      Math.cos(angle) * speed,
+      0.85 + Math.sin(angle) * speed,
+      (Math.random() - 0.5) * 0.65,
+    );
+    encoreSparks.life[index] = 0.58 + Math.random() * 0.24;
+  }
+  positions.needsUpdate = true;
+  colors.needsUpdate = true;
+}
+
+function updateEncoreSparks(delta) {
+  if (!encoreSparks) return;
+  const positions = encoreSparks.points.geometry.getAttribute("position");
+  const colors = encoreSparks.points.geometry.getAttribute("color");
+
+  for (let index = 0; index < ENCORE_SPARK_COUNT; index += 1) {
+    if (encoreSparks.life[index] <= 0) continue;
+    encoreSparks.life[index] = Math.max(0, encoreSparks.life[index] - delta);
+    if (encoreSparks.life[index] === 0) {
+      positions.setY(index, -50);
+      continue;
+    }
+
+    const velocity = encoreSparks.velocities[index];
+    positions.setXYZ(
+      index,
+      positions.getX(index) + velocity.x * delta,
+      positions.getY(index) + velocity.y * delta,
+      positions.getZ(index) + velocity.z * delta,
+    );
+    velocity.y -= 3.4 * delta;
+    const fade = Math.min(1, encoreSparks.life[index] / 0.22);
+    colors.setXYZ(
+      index,
+      encoreSparks.baseColors[index * 3] * fade,
+      encoreSparks.baseColors[index * 3 + 1] * fade,
+      encoreSparks.baseColors[index * 3 + 2] * fade,
+    );
+  }
+  positions.needsUpdate = true;
+  colors.needsUpdate = true;
+}
+
+function resetEncoreSparks() {
+  if (!encoreSparks) return;
+  const positions = encoreSparks.points.geometry.getAttribute("position");
+  encoreSparks.life.fill(0);
+  for (let index = 0; index < ENCORE_SPARK_COUNT; index += 1) {
+    positions.setY(index, -50);
+  }
+  positions.needsUpdate = true;
+  encoreSparks.cursor = 0;
+}
+
 function createAtmosphere() {
   const lampBody = mat(0x28354a, 0.72, 0.34);
   const lamps = [
@@ -637,6 +756,7 @@ function createWorld() {
 
   addPlatform(STAGE_X, -2.275, 7.4, 0.55, 0x21162a);
   createStage();
+  encoreSparks = createEncoreSparks();
   createAtmosphere();
   createCheckpoint();
 }
@@ -1234,9 +1354,28 @@ function updateSoundWaves(delta) {
 }
 
 function solo() {
-  [196, 247, 294, 392, 494, 587, 784].forEach((frequency, index) => {
-    tone(frequency, 0.32, index * 0.16, index % 3 === 0 ? "sawtooth" : "triangle");
-  });
+  encoreSoloNoteIndex = 0;
+}
+
+function encoreNotePulse(soloTime, note) {
+  const age = soloTime - note.time;
+  if (age < 0 || age > 0.24) return 0;
+  return Math.sin((age / 0.24) * Math.PI);
+}
+
+function updateEncoreSolo(sequenceTime, guitar) {
+  const soloTime = sequenceTime - ENCORE_SOLO_START;
+  while (
+    encoreSoloNoteIndex < ENCORE_SOLO_NOTES.length
+    && soloTime >= ENCORE_SOLO_NOTES[encoreSoloNoteIndex].time
+  ) {
+    const note = ENCORE_SOLO_NOTES[encoreSoloNoteIndex];
+    tone(note.frequency, 0.32, 0, note.type, note.frequency === 784 ? 0.16 : 0.12);
+    guitar.getWorldPosition(encoreSparkOrigin);
+    burstEncoreSparks(encoreSparkOrigin, note.color);
+    encoreSoloNoteIndex += 1;
+  }
+  return soloTime;
 }
 
 function updateHealth() {
@@ -1295,6 +1434,7 @@ function resetStageLighting() {
   });
   neon.intensity = 26;
   scene.background.copy(nightBackground);
+  resetEncoreSparks();
 }
 
 function resetThreats() {
@@ -1496,6 +1636,7 @@ function finish() {
   releaseTouchMovement();
   encoreStartTime = gameTime;
   encoreSoloStarted = false;
+  encoreSoloNoteIndex = 0;
   const { visual, guitar, frontArm, backArm } = player.userData.rig;
   visual.visible = true;
   encoreEntryYaw = player.rotation.y;
@@ -1824,9 +1965,10 @@ function aimEncoreArm(arm, start, guitar, grip, reach) {
   arm.scale.y = THREE.MathUtils.lerp(1, length / 0.49, reach);
 }
 
-function animateEncore(elapsed) {
+function animateEncore(delta, elapsed) {
   if (!completed) return;
   const sequenceTime = Math.max(0, elapsed - encoreStartTime);
+  const soloTime = sequenceTime - ENCORE_SOLO_START;
   const overallProgress = THREE.MathUtils.smoothstep(sequenceTime, 0, 1.45);
 
   stageLights.forEach(({ light, targetIntensity, delay }, index) => {
@@ -1834,10 +1976,15 @@ function animateEncore(elapsed) {
     const shimmer = progress > 0
       ? 1 + Math.sin(sequenceTime * 5.2 + index * 1.4) * 0.035
       : 1;
-    light.intensity = targetIntensity * progress * shimmer;
+    let notePulse = 0;
+    ENCORE_SOLO_NOTES.forEach((note) => {
+      if (note.light === index) notePulse = Math.max(notePulse, encoreNotePulse(soloTime, note));
+    });
+    light.intensity = targetIntensity * progress * shimmer + notePulse * 72;
     const { beam, fixtureMaterial } = stageLightBeams[index];
-    beam.material.opacity = progress * (0.075 + Math.sin(sequenceTime * 3.4 + index) * 0.008);
-    fixtureMaterial.emissiveIntensity = 0.18 + progress * 2.5;
+    beam.material.opacity = progress * (0.075 + Math.sin(sequenceTime * 3.4 + index) * 0.008)
+      + notePulse * 0.13;
+    fixtureMaterial.emissiveIntensity = 0.18 + progress * 2.5 + notePulse * 2.4;
   });
 
   neon.intensity = THREE.MathUtils.lerp(26, 58, overallProgress);
@@ -1884,6 +2031,16 @@ function animateEncore(elapsed) {
     encoreSoloStarted = true;
     solo();
   }
+  if (encoreSoloStarted) {
+    updateEncoreSolo(sequenceTime, guitar);
+    let strum = 0;
+    ENCORE_SOLO_NOTES.forEach((note) => {
+      strum += encoreNotePulse(soloTime, note) * note.strum;
+    });
+    backArm.rotateZ(strum * 0.11);
+    guitar.rotation.z += strum * 0.018;
+  }
+  updateEncoreSparks(delta);
   if (sequenceTime >= ENCORE_PANEL_TIME && ui.encore.hidden) {
     ui.encore.hidden = false;
   }
@@ -1928,7 +2085,7 @@ function animate() {
   camera.lookAt(camera.position.x, 0.7, 0);
   updateParallax(elapsed);
   updateAtmosphere(delta, elapsed);
-  animateEncore(elapsed);
+  animateEncore(delta, elapsed);
   renderer.render(scene, camera);
 }
 
