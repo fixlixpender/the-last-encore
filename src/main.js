@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-const TOTAL_NOTES = 5;
+const TOTAL_NOTES = 7;
 const MAX_HEALTH = 3;
 const MAX_SOUND_ENERGY = 2;
 const STARTING_SOUND_ENERGY = 1;
@@ -10,7 +10,11 @@ const PLATFORM_SENTINEL = { width: 0.64, height: 0.58, speed: 1.05 };
 const SOUND_WAVE = { cost: 1, range: 3.6, duration: 0.52, cooldown: 1.1, stun: 2.8 };
 const NOTE_PROXIMITY = { radius: 3.2, collectRadius: 0.9 };
 const DAMAGE = { invulnerability: 1.35, knockback: 1.55, bounce: 6.2 };
-const EXIT_DOOR = { minX: 33, maxX: 35.4 };
+const STAGE_X = 46.2;
+const LEVEL_MAX_X = 49.2;
+const CAMERA_MAX_X = STAGE_X - 2.7;
+const EXIT_HINT_X = STAGE_X - 3.7;
+const EXIT_DOOR = { minX: STAGE_X - 1.2, maxX: STAGE_X + 1.2 };
 const CHECKPOINT_X = 20.8;
 const PLAYER_Z = 2;
 const PLAYER_START_Y = -0.98;
@@ -85,8 +89,8 @@ neon.position.set(4, 2, 3);
 scene.add(neon);
 
 const stageLight = new THREE.SpotLight(0xff3fbf, 48, 16, Math.PI / 5, 0.55, 1.5);
-stageLight.position.set(34, 7, 5);
-stageLight.target.position.set(34, -0.5, 0);
+stageLight.position.set(STAGE_X, 7, 5);
+stageLight.target.position.set(STAGE_X, -0.5, 0);
 scene.add(stageLight, stageLight.target);
 
 const platforms = [];
@@ -349,9 +353,9 @@ function createStage() {
   const left = new THREE.Mesh(pillarGeometry, stageMaterial);
   const right = left.clone();
   const roof = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.42, 1.2), stageMaterial);
-  left.position.set(32, 0.1, -0.2);
-  right.position.set(36.4, 0.1, -0.2);
-  roof.position.set(34.2, 2.2, -0.2);
+  left.position.set(STAGE_X - 2.2, 0.1, -0.2);
+  right.position.set(STAGE_X + 2.2, 0.1, -0.2);
+  roof.position.set(STAGE_X, 2.2, -0.2);
   scene.add(left, right, roof);
 
   const canvas = document.createElement("canvas");
@@ -373,7 +377,7 @@ function createStage() {
     new THREE.PlaneGeometry(3.1, 1.05),
     new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas) }),
   );
-  sign.position.set(34.2, 1.35, 0.45);
+  sign.position.set(STAGE_X, 1.35, 0.45);
   scene.add(sign);
 }
 
@@ -383,6 +387,7 @@ function createAtmosphere() {
     { x: 13.2, color: 0x3de8ff, intensity: 11, phase: 0.4 },
     { x: 22.4, color: 0xff4ecb, intensity: 9, phase: 1.8 },
     { x: 29.8, color: 0x56dfff, intensity: 10, phase: 3.1 },
+    { x: 39.6, color: 0xff63cf, intensity: 9, phase: 4.4 },
   ];
 
   lamps.forEach(({ x, color, intensity, phase }) => {
@@ -430,7 +435,7 @@ function createAtmosphere() {
   fogContext.fillRect(0, 0, 256, 128);
   const fogTexture = new THREE.CanvasTexture(fogCanvas);
 
-  [3, 12, 21, 30, 39].forEach((x, index) => {
+  [3, 12, 21, 30, 39, 48].forEach((x, index) => {
     const material = new THREE.SpriteMaterial({
       map: fogTexture,
       color: index % 2 === 0 ? 0x7fcadd : 0x9a7ac0,
@@ -530,7 +535,7 @@ function createCheckpoint() {
 
 function createWorld() {
   createCity();
-  addPlatform(15, -2.65, 44, 1.3, 0x121722);
+  addPlatform(21, -2.65, 56, 1.3, 0x121722);
 
   [
     { x: 6.2, top: 0.99, width: 2.8, height: 0.34 },
@@ -538,11 +543,14 @@ function createWorld() {
     { x: 17.4, top: 0.99, width: 3.2, height: 0.46 },
     { x: 23.2, top: 1.44, width: 4.4, height: 0.82 },
     { x: 28.2, top: 0.99, width: 2.5, height: 0.58 },
+    { x: 33, top: 1.35, width: 3.4, height: 0.52 },
+    { x: 37.6, top: 2.25, width: 2.8, height: 0.62 },
+    { x: 42, top: 1.35, width: 3.6, height: 0.72 },
   ].forEach(({ x, top, width, height }) => {
     addPlatform(x, top - height / 2, width, height);
   });
 
-  addPlatform(34.2, -2.275, 7.4, 0.55, 0x21162a);
+  addPlatform(STAGE_X, -2.275, 7.4, 0.55, 0x21162a);
   createStage();
   createAtmosphere();
   createCheckpoint();
@@ -748,8 +756,15 @@ function addNote(x, y, phase) {
 }
 
 function createNotes() {
-  [[3.3, -0.9], [6.2, 2.05], [12, 2.35], [23.2, 2.3], [29.5, 2.05]]
-    .forEach(([x, y], index) => addNote(x, y, index * 1.2));
+  [
+    [3.3, -0.9],
+    [6.2, 2.05],
+    [12, 2.35],
+    [23.2, 2.3],
+    [29.5, 2.05],
+    [37.6, 3.3],
+    [42, 2.4],
+  ].forEach(([x, y], index) => addNote(x, y, index * 1.2));
 }
 
 function createShadowCreature(startX, patrolMin, patrolMax, direction = 1) {
@@ -835,6 +850,7 @@ function createShadowCreature(startX, patrolMin, patrolMax, direction = 1) {
 function createShadows() {
   createShadowCreature(16.2, 14.2, 19.2, 1);
   createShadowCreature(26.4, 24.7, 29.5, -1);
+  createShadowCreature(35.2, 32.3, 38.4, 1);
 }
 
 function createPlatformSentinel(startX, platformTop, patrolMin, patrolMax, direction = 1) {
@@ -915,6 +931,7 @@ function createPlatformSentinel(startX, platformTop, patrolMin, patrolMax, direc
 function createPlatformSentinels() {
   createPlatformSentinel(12.7, 1.49, 10.25, 13.1, -1);
   createPlatformSentinel(22.1, 1.44, 21.55, 24.85, 1);
+  createPlatformSentinel(42.8, 1.35, 40.55, 43.45, -1);
 }
 
 function createRain() {
@@ -1120,7 +1137,7 @@ function updateHealth() {
   ui.health.setAttribute("aria-label", `${health} ${health === 1 ? "heart" : "hearts"} remaining`);
 }
 
-function placePlayer(x, cameraX = THREE.MathUtils.clamp(x + 2, 0, 31.5)) {
+function placePlayer(x, cameraX = THREE.MathUtils.clamp(x + 2, 0, CAMERA_MAX_X)) {
   velocityY = 0;
   onGround = false;
   landingBounce = 0;
@@ -1293,7 +1310,7 @@ function takeDamage(shadow) {
   player.position.x = THREE.MathUtils.clamp(
     shadow.group.position.x + side * DAMAGE.knockback,
     -1.5,
-    37.2,
+    LEVEL_MAX_X,
   );
   velocityY = DAMAGE.bounce;
   onGround = false;
@@ -1377,8 +1394,12 @@ function updatePlayer(delta) {
   const direction = Number(keys.has("ArrowRight") || keys.has("KeyD"))
     - Number(keys.has("ArrowLeft") || keys.has("KeyA"));
   if (direction) facing = direction;
-  player.position.x = THREE.MathUtils.clamp(player.position.x + direction * PLAYER.speed * delta, -1.5, 37.2);
-  if (!exitHintShown && player.position.x > 30.5) {
+  player.position.x = THREE.MathUtils.clamp(
+    player.position.x + direction * PLAYER.speed * delta,
+    -1.5,
+    LEVEL_MAX_X,
+  );
+  if (!exitHintShown && player.position.x > EXIT_HINT_X) {
     exitHintShown = true;
     showGuidance("Step through the glowing LIVE door on the ground to finish the level.", "Final step", 6000);
   }
@@ -1710,7 +1731,7 @@ function animate() {
   updatePlatformSentinels(delta, elapsed);
   updateSoundWaves(delta);
   updateRain(delta);
-  const targetX = THREE.MathUtils.clamp(player.position.x + 2, 0, 31.5);
+  const targetX = THREE.MathUtils.clamp(player.position.x + 2, 0, CAMERA_MAX_X);
   camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetX, 0.055);
   camera.lookAt(camera.position.x, 0.7, 0);
   updateParallax(elapsed);
