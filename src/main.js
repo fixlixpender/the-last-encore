@@ -36,6 +36,8 @@ const ENCORE_LIFT_END = 1.58;
 const ENCORE_HEAD_TURN_END = 2.08;
 const ENCORE_SOLO_START = 2.14;
 const ENCORE_PANEL_TIME = 3.72;
+const ENCORE_BACK_ARM_START_Z = -0.02;
+const ENCORE_BACK_ARM_FRONT_Z = 0.8;
 const ENCORE_SPARK_COUNT = 72;
 const ENCORE_SOLO_NOTES = [
   { time: 0, frequency: 196, light: 0, color: 0x4de8ff, strum: 1, type: "sawtooth" },
@@ -847,7 +849,7 @@ function createPlayer() {
     return { leg, boot };
   }
 
-  const backArm = createArm(-0.2, -0.02);
+  const backArm = createArm(-0.2, ENCORE_BACK_ARM_START_Z);
   const frontArm = createArm(0.22, 0.27);
   const left = createLeg(-0.14, -0.04);
   const right = createLeg(0.14, 0.18);
@@ -1399,6 +1401,7 @@ function placePlayer(x, cameraX = THREE.MathUtils.clamp(x + 2, 0, CAMERA_MAX_X))
   visual.scale.set(1, 1, 1);
   visual.visible = true;
   headRig.rotation.set(0, 0, 0);
+  backArm.position.z = ENCORE_BACK_ARM_START_Z;
   [frontArm, backArm].forEach((arm) => {
     arm.rotation.set(0, 0, 0);
     arm.scale.set(1, 1, 1);
@@ -2010,6 +2013,16 @@ function animateEncore(delta, elapsed) {
   const lift = THREE.MathUtils.smoothstep(sequenceTime, ENCORE_CLEAR_END, ENCORE_LIFT_END);
   const reach = THREE.MathUtils.smoothstep(sequenceTime, ENCORE_TURN_END, ENCORE_DETACH_END);
   const support = THREE.MathUtils.smoothstep(sequenceTime, 1.02, ENCORE_LIFT_END);
+  const armDepth = THREE.MathUtils.smoothstep(
+    sequenceTime,
+    ENCORE_TURN_END,
+    ENCORE_CLEAR_END,
+  );
+  backArm.position.z = THREE.MathUtils.lerp(
+    ENCORE_BACK_ARM_START_Z,
+    ENCORE_BACK_ARM_FRONT_Z,
+    armDepth,
+  );
 
   if (sequenceTime < ENCORE_DETACH_END) {
     // Slide the guitar beyond the body silhouette while it is still on the back.
