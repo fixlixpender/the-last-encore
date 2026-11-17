@@ -57,7 +57,9 @@ const ui = {
 };
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x050711);
+const nightBackground = new THREE.Color(0x050711);
+const encoreBackground = new THREE.Color(0x12091c);
+scene.background = nightBackground.clone();
 scene.fog = new THREE.FogExp2(0x070914, 0.032);
 
 const camera = new THREE.OrthographicCamera(-8, 8, 5, -5, 0.1, 100);
@@ -88,10 +90,36 @@ const neon = new THREE.PointLight(0x39dff7, 26, 12, 2);
 neon.position.set(4, 2, 3);
 scene.add(neon);
 
-const stageLight = new THREE.SpotLight(0xff3fbf, 48, 16, Math.PI / 5, 0.55, 1.5);
-stageLight.position.set(STAGE_X, 7, 5);
-stageLight.target.position.set(STAGE_X, -0.5, 0);
-scene.add(stageLight, stageLight.target);
+const stageLights = [
+  {
+    color: 0x4de8ff,
+    offsetX: -1.45,
+    targetOffsetX: -0.65,
+    targetIntensity: 88,
+    delay: 0.08,
+  },
+  {
+    color: 0xff3fbf,
+    offsetX: 0,
+    targetOffsetX: 0,
+    targetIntensity: 122,
+    delay: 0.36,
+  },
+  {
+    color: 0xffd2ee,
+    offsetX: 1.45,
+    targetOffsetX: 0.65,
+    targetIntensity: 96,
+    delay: 0.64,
+  },
+].map((spec) => {
+  const light = new THREE.SpotLight(spec.color, 0, 18, Math.PI / 7, 0.48, 1.35);
+  light.position.set(STAGE_X + spec.offsetX, 6.4, 4.5);
+  light.target.position.set(STAGE_X + spec.targetOffsetX, -0.65, 0);
+  scene.add(light, light.target);
+  return { ...spec, light };
+});
+const stageLightBeams = [];
 
 const platforms = [];
 const notes = [];
@@ -124,6 +152,7 @@ let checkpointNoticeTimer = null;
 let exitHintShown = false;
 let paused = false;
 let gameTime = 0;
+let encoreStartTime = 0;
 const touchPreferred = matchMedia("(hover: none), (pointer: coarse)").matches;
 
 function hideGuidance() {
@@ -379,6 +408,33 @@ function createStage() {
   );
   sign.position.set(STAGE_X, 1.35, 0.45);
   scene.add(sign);
+
+  stageLights.forEach(({ color, offsetX }, index) => {
+    const fixtureMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1c2030,
+      emissive: color,
+      emissiveIntensity: 0.18,
+      roughness: 0.42,
+      metalness: 0.58,
+    });
+    const fixture = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.18, 0.34, 12), fixtureMaterial);
+    fixture.rotation.z = Math.PI / 2;
+    fixture.position.set(STAGE_X + offsetX * 0.72, 2.58, 0.35);
+
+    const beamMaterial = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const beam = new THREE.Mesh(new THREE.ConeGeometry(1.1, 4.5, 28, 1, true), beamMaterial);
+    beam.position.set(STAGE_X + offsetX * 0.45, 0.42, 0.28 - index * 0.04);
+    beam.rotation.z = (index - 1) * 0.08;
+    scene.add(fixture, beam);
+    stageLightBeams.push({ beam, fixtureMaterial });
+  });
 }
 
 function createAtmosphere() {
@@ -1194,6 +1250,18 @@ function restoreNotes(noteStates = null) {
   });
 }
 
+function resetStageLighting() {
+  stageLights.forEach(({ light }) => {
+    light.intensity = 0;
+  });
+  stageLightBeams.forEach(({ beam, fixtureMaterial }) => {
+    beam.material.opacity = 0;
+    fixtureMaterial.emissiveIntensity = 0.18;
+  });
+  neon.intensity = 26;
+  scene.background.copy(nightBackground);
+}
+
 function resetThreats() {
   shadows.forEach((shadow) => {
     shadow.group.position.x = shadow.startX;
@@ -1277,9 +1345,7 @@ function respawnAtCheckpoint() {
   placePlayer(checkpointState.checkpoint.respawnX);
   restoreNotes(checkpointState.notes);
   resetThreats();
-  stageLight.intensity = 48;
-  neon.intensity = 26;
-  scene.background.set(0x050711);
+  resetStageLighting();
   ui.noteCount.textContent = `${collected} / ${TOTAL_NOTES}`;
   updateHealth();
   updateSoundEnergy();
@@ -1370,9 +1436,7 @@ function reset() {
     checkpoint.activated = false;
     checkpoint.activation = 0;
   });
-  stageLight.intensity = 48;
-  neon.intensity = 26;
-  scene.background.set(0x050711);
+  resetStageLighting();
   ui.noteCount.textContent = `0 / ${TOTAL_NOTES}`;
   updateHealth();
   updateSoundEnergy();
@@ -1395,9 +1459,8 @@ function finish() {
   velocityY = 0;
   keys.clear();
   releaseTouchMovement();
-  stageLight.intensity = 120;
-  neon.intensity = 58;
-  scene.background.set(0x12091c);
+  encoreStartTime = gameTime;
+  resetStageLighting();
   ui.mission.textContent = "The silence breaks. The district can hear you.";
   hideGuidance();
   hideCheckpointNotice();
@@ -1405,7 +1468,7 @@ function finish() {
   ui.game.classList.remove("is-active", "is-paused");
   ui.encoreScore.textContent = `You carried ${collected} of ${TOTAL_NOTES} lost notes to the stage.`;
   solo();
-  setTimeout(() => (ui.encore.hidden = false), 1250);
+  setTimeout(() => (ui.encore.hidden = false), 1900);
 }
 
 function updatePlayer(delta) {
@@ -1712,6 +1775,23 @@ function updateAtmosphere(delta, elapsed) {
 
 function animateEncore(elapsed) {
   if (!completed) return;
+  const sequenceTime = Math.max(0, elapsed - encoreStartTime);
+  const overallProgress = THREE.MathUtils.smoothstep(sequenceTime, 0, 1.45);
+
+  stageLights.forEach(({ light, targetIntensity, delay }, index) => {
+    const progress = THREE.MathUtils.smoothstep(sequenceTime, delay, delay + 0.48);
+    const shimmer = progress > 0
+      ? 1 + Math.sin(sequenceTime * 5.2 + index * 1.4) * 0.035
+      : 1;
+    light.intensity = targetIntensity * progress * shimmer;
+    const { beam, fixtureMaterial } = stageLightBeams[index];
+    beam.material.opacity = progress * (0.075 + Math.sin(sequenceTime * 3.4 + index) * 0.008);
+    fixtureMaterial.emissiveIntensity = 0.18 + progress * 2.5;
+  });
+
+  neon.intensity = THREE.MathUtils.lerp(26, 58, overallProgress);
+  scene.background.copy(nightBackground).lerp(encoreBackground, overallProgress);
+
   const guitar = player.getObjectByName("guitar");
   guitar.position.lerp(ENCORE_GUITAR_TARGET, 0.055);
   guitar.rotation.z = THREE.MathUtils.lerp(guitar.rotation.z, 0.28, 0.055);
