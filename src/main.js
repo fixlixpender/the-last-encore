@@ -23,7 +23,6 @@ const GUITAR_CARRY_POSITION = new THREE.Vector3(-0.22, -0.01, -0.34);
 const GUITAR_SIDE_BACK_POSITION = new THREE.Vector3(-0.72, 0.05, -0.34);
 const GUITAR_SIDE_FRONT_POSITION = new THREE.Vector3(-0.72, 0.05, 0.72);
 const GUITAR_PLAY_POSITION = new THREE.Vector3(0.14, -0.01, 0.48);
-const GUITAR_AUDIENCE_POSITION = new THREE.Vector3(0.55, -0.06, 0);
 const ENCORE_GUITAR_PATH = new THREE.CubicBezierCurve3(
   GUITAR_SIDE_FRONT_POSITION,
   new THREE.Vector3(-0.58, 0.12, 0.76),
@@ -34,15 +33,9 @@ const ENCORE_TURN_END = 0.22;
 const ENCORE_DETACH_END = 0.48;
 const ENCORE_CLEAR_END = 0.88;
 const ENCORE_LIFT_END = 1.58;
-const ENCORE_AUDIENCE_TURN_END = 2.08;
+const ENCORE_HEAD_TURN_END = 2.08;
 const ENCORE_SOLO_START = 2.14;
 const ENCORE_PANEL_TIME = 3.5;
-const ENCORE_SIDE_GUITAR_ROTATION = new THREE.Quaternion().setFromEuler(
-  new THREE.Euler(0, 0, -1.12),
-);
-const ENCORE_AUDIENCE_GUITAR_ROTATION = new THREE.Quaternion().setFromEuler(
-  new THREE.Euler(0, Math.PI / 2, -1.12),
-);
 const ARM_REST_DIRECTION = new THREE.Vector3(0, -1, 0);
 const GUITAR_NECK_GRIP = new THREE.Vector3(0, 0.46, 0.12);
 const GUITAR_STRINGS_GRIP = new THREE.Vector3(0.02, -0.06, 0.13);
@@ -1259,12 +1252,13 @@ function placePlayer(x, cameraX = THREE.MathUtils.clamp(x + 2, 0, CAMERA_MAX_X))
   player.rotation.set(0, 0, 0);
   camera.position.x = cameraX;
   camera.lookAt(cameraX, 0.7, 0);
-  const { visual, guitar, frontArm, backArm } = player.userData.rig;
+  const { visual, guitar, frontArm, backArm, headRig } = player.userData.rig;
   player.userData.rig.walkTime = 0;
   visual.position.set(0, 0, 0);
   visual.rotation.set(0, 0, 0);
   visual.scale.set(1, 1, 1);
   visual.visible = true;
+  headRig.rotation.set(0, 0, 0);
   [frontArm, backArm].forEach((arm) => {
     arm.rotation.set(0, 0, 0);
     arm.scale.set(1, 1, 1);
@@ -1849,17 +1843,18 @@ function animateEncore(elapsed) {
   neon.intensity = THREE.MathUtils.lerp(26, 58, overallProgress);
   scene.background.copy(nightBackground).lerp(encoreBackground, overallProgress);
 
-  const { visual, guitar, frontArm, backArm } = player.userData.rig;
+  const { visual, guitar, frontArm, backArm, headRig } = player.userData.rig;
   const turn = THREE.MathUtils.smoothstep(sequenceTime, 0, ENCORE_TURN_END);
   const facingAngle = -0.12;
   const facingDelta = THREE.MathUtils.euclideanModulo(facingAngle - encoreEntryYaw + Math.PI, Math.PI * 2) - Math.PI;
   const sideFacing = encoreEntryYaw + facingDelta * turn;
-  const audienceTurn = THREE.MathUtils.smoothstep(
+  const headTurn = THREE.MathUtils.smoothstep(
     sequenceTime,
     ENCORE_LIFT_END,
-    ENCORE_AUDIENCE_TURN_END,
+    ENCORE_HEAD_TURN_END,
   );
-  player.rotation.y = THREE.MathUtils.lerp(sideFacing, -Math.PI / 2, audienceTurn);
+  player.rotation.y = sideFacing;
+  headRig.rotation.y = THREE.MathUtils.lerp(0, -Math.PI / 2 - sideFacing, headTurn);
   visual.rotation.z = THREE.MathUtils.lerp(encoreEntryLean, 0, turn);
 
   const detach = THREE.MathUtils.smoothstep(sequenceTime, ENCORE_TURN_END, ENCORE_DETACH_END);
@@ -1882,12 +1877,6 @@ function animateEncore(elapsed) {
     guitar.rotation.z = THREE.MathUtils.lerp(0.2, -1.12, lift);
   }
 
-  if (audienceTurn > 0) {
-    // Counter-rotate the guitar as the musician turns, keeping its face visible to the audience.
-    guitar.position.lerpVectors(GUITAR_PLAY_POSITION, GUITAR_AUDIENCE_POSITION, audienceTurn);
-    guitar.quaternion.copy(ENCORE_SIDE_GUITAR_ROTATION)
-      .slerp(ENCORE_AUDIENCE_GUITAR_ROTATION, audienceTurn);
-  }
   aimEncoreArm(frontArm, encoreEntryShoulders.front, guitar, GUITAR_NECK_GRIP, reach);
   aimEncoreArm(backArm, encoreEntryShoulders.back, guitar, GUITAR_STRINGS_GRIP, support);
 
