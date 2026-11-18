@@ -236,6 +236,7 @@ h1 {
 
 .intro,
 .encore,
+.next-location,
 .game-over,
 .pause-menu {
   position: fixed;
@@ -255,6 +256,7 @@ h1 {
 
 .intro::before,
 .encore::before,
+.next-location::before,
 .game-over::before,
 .pause-menu::before {
   position: absolute;
@@ -326,6 +328,7 @@ h1 {
 }
 
 .encore h2,
+.next-location h2,
 .game-over h2,
 .pause-menu h2 {
   margin: 7px 0 12px;
@@ -334,6 +337,7 @@ h1 {
 }
 
 .encore > p:nth-of-type(2),
+.next-location > p:nth-of-type(2),
 .game-over > p:nth-of-type(2) {
   margin-bottom: 26px;
   color: #aab6c8;
@@ -438,6 +442,103 @@ h1 {
   color: #ffd4f2;
   background: rgb(255 78 203 / 10%);
   box-shadow: 0 0 18px rgb(255 78 203 / 10%);
+}
+
+
+.encore-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.next-location {
+  width: min(520px, calc(100% - 40px));
+  border-color: rgb(255 78 203 / 30%);
+}
+
+.next-location .kicker {
+  color: #ff72d6;
+}
+
+.next-location-copy {
+  max-width: 390px;
+  margin: 0 auto 22px;
+  color: #9eacc0;
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+
+.journey-route {
+  display: grid;
+  align-items: center;
+  margin: 0 auto 12px;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+  color: #7c8ca1;
+}
+
+.journey-route span {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px;
+  border: 1px solid rgb(83 232 255 / 14%);
+  background: rgb(4 8 16 / 48%);
+  font: 700 0.62rem "Barlow Condensed", sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.journey-route .is-restored {
+  border-color: rgb(83 232 255 / 38%);
+  color: #8eeeff;
+  box-shadow: inset 0 0 22px rgb(83 232 255 / 7%);
+}
+
+.journey-route i {
+  color: #ff72d6;
+  font-style: normal;
+  text-shadow: 0 0 14px rgb(255 78 203 / 52%);
+}
+
+.next-location-status {
+  margin-bottom: 8px;
+  color: #ff72d6;
+  font: 700 0.58rem "Barlow Condensed", sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.next-location-score {
+  margin-bottom: 22px;
+  color: #73849a;
+  font-size: 0.65rem;
+}
+
+.scene-transition {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  background: #03040a;
+  pointer-events: none;
+  transition: opacity 520ms ease;
+}
+
+.scene-transition span {
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgb(83 232 255 / 25%);
+  border-radius: 50%;
+  box-shadow: 0 0 34px rgb(255 78 203 / 18%);
+}
+
+#game.is-transitioning .scene-transition {
+  opacity: 1;
 }
 
 .game-over {
@@ -852,6 +953,7 @@ kbd {
 
   .intro,
   .encore,
+  .next-location,
   .game-over,
   .pause-menu {
     width: min(520px, calc(100% - 24px));
@@ -866,6 +968,14 @@ kbd {
 
   .encore-stats {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .encore-actions {
+    flex-direction: column;
+  }
+
+  .journey-route {
+    gap: 6px;
   }
 
   .encore-stat-notes {
@@ -973,6 +1083,7 @@ kbd {
 @media (max-height: 620px) {
   .intro,
   .encore,
+  .next-location,
   .game-over,
   .pause-menu {
     max-height: calc(100% - 20px);
@@ -982,6 +1093,7 @@ kbd {
 
   .intro > p:nth-child(2),
   .encore h2,
+  .next-location h2,
   .game-over h2,
   .pause-menu h2 {
     font-size: clamp(2rem, 9vh, 3.25rem);
