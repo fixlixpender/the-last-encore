@@ -116,14 +116,14 @@
 
       <section class="next-location" id="next-location" tabindex="-1" hidden>
         <p class="kicker">The signal continues</p>
-        <h2>Another place is listening.</h2>
-        <p class="next-location-copy">Your encore carries beyond the restored district and disappears into the static.</p>
+        <h2 id="next-location-name">Moonlit Forest</h2>
+        <p class="next-location-copy" id="next-location-copy">Beyond the restored district, moonlight breaks through the trees and a quieter signal answers your encore.</p>
         <div class="journey-route" aria-label="Journey progress">
           <span class="is-restored">District restored</span>
           <i aria-hidden="true">→</i>
-          <span>Next location</span>
+          <span id="next-location-route-name">Moonlit Forest</span>
         </div>
-        <p class="next-location-status">Signal detected · destination still unknown</p>
+        <p class="next-location-status" id="next-location-status">Moonlit signal located · route forming</p>
         <p class="next-location-score" id="next-location-score"></p>
         <button id="next-replay-button" type="button">Replay this district</button>
       </section>
@@ -193,6 +193,6 @@
       </div>
       <div class="vignette" aria-hidden="true"></div>
     </main>
-    <script type="module" src="./src/main.js?v=next-location-transition-1"></script>
+    <script type="module" src="./src/main.js?v=level-config-1"></script>
   </body>
 </html>
