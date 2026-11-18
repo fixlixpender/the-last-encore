@@ -128,7 +128,7 @@ export const LEVELS = Object.freeze({
       {
         triggerX: 5.6,
         startX: 12.3,
-        endX: 5.3,
+        endX: -4.6,
         y: -0.92,
         direction: -1,
         warningDuration: 1.1,
