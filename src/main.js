@@ -8,6 +8,7 @@ const PLAYER = { width: 0.82, height: 2.04, speed: 5.4, jump: 10.8 };
 const SHADOW = { width: 0.88, height: 0.82, speed: 1.35 };
 const PLATFORM_SENTINEL = { width: 0.64, height: 0.58, speed: 1.05 };
 const SOUND_WAVE = { cost: 1, range: 3.6, duration: 0.52, cooldown: 1.1, stun: 2.8 };
+const LEVEL_SCORE = { note: 200, allNotesBonus: 600, health: 100 };
 const NOTE_PROXIMITY = { radius: 3.2, collectRadius: 0.9 };
 const DAMAGE = { invulnerability: 1.35, knockback: 1.55, bounce: 6.2 };
 const STAGE_X = 46.2;
@@ -68,6 +69,13 @@ const ui = {
   healthHearts: [...document.querySelectorAll("#health .heart")],
   mission: document.querySelector("#mission-text"),
   encoreScore: document.querySelector("#encore-score"),
+  encoreTotalScore: document.querySelector("#encore-total-score"),
+  encoreNotes: document.querySelector("#encore-notes"),
+  encoreNotePoints: document.querySelector("#encore-note-points"),
+  encoreRhythm: document.querySelector("#encore-rhythm"),
+  encoreRhythmPoints: document.querySelector("#encore-rhythm-points"),
+  encoreWaves: document.querySelector("#encore-waves"),
+  encoreBonus: document.querySelector("#encore-bonus"),
   gameOverScore: document.querySelector("#game-over-score"),
   soundControl: document.querySelector("#sound-control"),
   soundControlLabel: document.querySelector("#sound-control-label"),
@@ -171,6 +179,7 @@ let defeated = false;
 let collected = 0;
 let health = MAX_HEALTH;
 let soundEnergy = STARTING_SOUND_ENERGY;
+let soundWavesUsed = 0;
 let invulnerabilityTime = 0;
 let velocityY = 0;
 let onGround = false;
@@ -1279,6 +1288,7 @@ function emitSoundWave() {
   }
 
   soundEnergy -= SOUND_WAVE.cost;
+  soundWavesUsed += 1;
   updateSoundEnergy();
 
   const group = new THREE.Group();
@@ -1465,6 +1475,7 @@ function activateCheckpoint(checkpoint) {
     checkpoint,
     collected,
     soundEnergy,
+    soundWavesUsed,
     notes: notes.map((note) => note.collected),
   };
   health = MAX_HEALTH;
@@ -1517,6 +1528,7 @@ function respawnAtCheckpoint() {
   collected = checkpointState.collected;
   health = MAX_HEALTH;
   soundEnergy = checkpointState.soundEnergy;
+  soundWavesUsed = checkpointState.soundWavesUsed;
   invulnerabilityTime = 1;
   soundWaveCooldown = 0;
   paused = false;
@@ -1599,6 +1611,7 @@ function reset() {
   collected = 0;
   health = MAX_HEALTH;
   soundEnergy = STARTING_SOUND_ENERGY;
+  soundWavesUsed = 0;
   checkpointState = null;
   invulnerabilityTime = 0;
   soundWaveCooldown = 0;
@@ -1632,6 +1645,18 @@ function reset() {
   clock.start();
 }
 
+function calculateFinalScore() {
+  const notePoints = collected * LEVEL_SCORE.note;
+  const rhythmPoints = health * LEVEL_SCORE.health;
+  const fullSetBonus = collected === TOTAL_NOTES ? LEVEL_SCORE.allNotesBonus : 0;
+  return {
+    notePoints,
+    rhythmPoints,
+    fullSetBonus,
+    total: notePoints + rhythmPoints + fullSetBonus,
+  };
+}
+
 function finish() {
   if (completed) return;
   completed = true;
@@ -1654,7 +1679,21 @@ function finish() {
   hideCheckpointNotice();
   ui.pauseButton.hidden = true;
   ui.game.classList.remove("is-active", "is-paused");
-  ui.encoreScore.textContent = `You carried ${collected} of ${TOTAL_NOTES} lost notes to the stage.`;
+  const score = calculateFinalScore();
+  const missingNotes = TOTAL_NOTES - collected;
+  ui.encoreScore.textContent = collected === TOTAL_NOTES
+    ? "Every lost note reached the stage."
+    : `You carried ${collected} of ${TOTAL_NOTES} lost notes to the stage.`;
+  ui.encoreTotalScore.textContent = score.total.toLocaleString("en-GB");
+  ui.encoreNotes.textContent = `${collected} / ${TOTAL_NOTES}`;
+  ui.encoreNotePoints.textContent = `+${score.notePoints.toLocaleString("en-GB")} pts`;
+  ui.encoreRhythm.textContent = `${health} / ${MAX_HEALTH}`;
+  ui.encoreRhythmPoints.textContent = `+${score.rhythmPoints.toLocaleString("en-GB")} pts`;
+  ui.encoreWaves.textContent = soundWavesUsed.toString();
+  ui.encoreBonus.classList.toggle("is-earned", score.fullSetBonus > 0);
+  ui.encoreBonus.textContent = score.fullSetBonus > 0
+    ? `Perfect collection · +${score.fullSetBonus} full-set bonus`
+    : `${missingNotes} ${missingNotes === 1 ? "note" : "notes"} still missing · collect all seven for a +${LEVEL_SCORE.allNotesBonus} bonus`;
 }
 
 function updatePlayer(delta) {
