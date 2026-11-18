@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { ACTIVE_LEVEL, NEXT_LEVEL } from "./levels.js?v=forest-prototype-1";
+import { ACTIVE_LEVEL, NEXT_LEVEL } from "./levels.js?v=moth-flight-1";
 
 const TOTAL_NOTES = ACTIVE_LEVEL.notes.length;
 const IS_FOREST = ACTIVE_LEVEL.theme === "forest";
