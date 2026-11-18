@@ -1,13 +1,16 @@
 import * as THREE from "three";
-import { ACTIVE_LEVEL, NEXT_LEVEL } from "./levels.js?v=level-config-1";
+import { ACTIVE_LEVEL, NEXT_LEVEL } from "./levels.js?v=forest-prototype-1";
 
 const TOTAL_NOTES = ACTIVE_LEVEL.notes.length;
+const IS_FOREST = ACTIVE_LEVEL.theme === "forest";
+const BASE_GLOW_INTENSITY = IS_FOREST ? 10 : 26;
 const MAX_HEALTH = 3;
 const MAX_SOUND_ENERGY = 2;
 const STARTING_SOUND_ENERGY = 1;
 const PLAYER = { width: 0.82, height: 2.04, speed: 5.4, jump: 10.8 };
 const SHADOW = { width: 0.88, height: 0.82, speed: 1.35 };
 const PLATFORM_SENTINEL = { width: 0.64, height: 0.58, speed: 1.05 };
+const SILENCE_MOTH = { width: 1.16, height: 0.72 };
 const SOUND_WAVE = { cost: 1, range: 3.6, duration: 0.52, cooldown: 1.1, stun: 2.8 };
 const LEVEL_SCORE = { note: 200, allNotesBonus: 600, health: 100 };
 const NOTE_PROXIMITY = { radius: 3.2, collectRadius: 0.9 };
@@ -64,7 +67,12 @@ const encoreStringsGrip = new THREE.Vector3();
 const ui = {
   game: document.querySelector("#game"),
   intro: document.querySelector("#intro"),
+  introKicker: document.querySelector("#intro-kicker"),
+  introTagline: document.querySelector("#intro-tagline"),
+  introGoal: document.querySelector("#intro-goal"),
   encore: document.querySelector("#encore"),
+  encoreKicker: document.querySelector("#encore-kicker"),
+  encoreTitle: document.querySelector("#encore-title"),
   gameOver: document.querySelector("#game-over"),
   noteCount: document.querySelector("#note-count"),
   soundEnergy: document.querySelector("#sound-energy"),
@@ -87,6 +95,7 @@ const ui = {
   nextLocationRouteName: document.querySelector("#next-location-route-name"),
   nextLocationStatus: document.querySelector("#next-location-status"),
   nextLocationScore: document.querySelector("#next-location-score"),
+  nextEnter: document.querySelector("#next-enter-button"),
   nextReplay: document.querySelector("#next-replay-button"),
   gameOverScore: document.querySelector("#game-over-score"),
   soundControl: document.querySelector("#sound-control"),
@@ -111,16 +120,31 @@ const ui = {
   touchSound: document.querySelector("#touch-sound"),
 };
 
-ui.nextLocationName.textContent = NEXT_LEVEL.name;
-ui.nextLocationCopy.textContent = NEXT_LEVEL.teaserCopy;
-ui.nextLocationRouteName.textContent = NEXT_LEVEL.name;
-ui.nextLocationStatus.textContent = NEXT_LEVEL.routeStatus;
+ui.introKicker.textContent = ACTIVE_LEVEL.introKicker;
+ui.introTagline.textContent = ACTIVE_LEVEL.introTagline;
+ui.introGoal.textContent = ACTIVE_LEVEL.introGoal;
+ui.start.textContent = ACTIVE_LEVEL.startLabel;
+ui.mission.textContent = ACTIVE_LEVEL.missionText;
+ui.game.classList.toggle("forest-level", IS_FOREST);
+ui.encoreKicker.textContent = ACTIVE_LEVEL.resultKicker;
+ui.encoreTitle.textContent = ACTIVE_LEVEL.resultTitle;
+ui.restart.textContent = ACTIVE_LEVEL.replayLabel;
+ui.noteCount.textContent = `0 / ${TOTAL_NOTES}`;
+ui.continueJourney.hidden = !NEXT_LEVEL;
+ui.nextEnter.hidden = !NEXT_LEVEL;
+if (NEXT_LEVEL) {
+  ui.nextLocationName.textContent = NEXT_LEVEL.name;
+  ui.nextLocationCopy.textContent = NEXT_LEVEL.teaserCopy;
+  ui.nextLocationRouteName.textContent = NEXT_LEVEL.name;
+  ui.nextLocationStatus.textContent = NEXT_LEVEL.routeStatus;
+  ui.nextEnter.textContent = `Enter ${NEXT_LEVEL.name}`;
+}
 
 const scene = new THREE.Scene();
-const nightBackground = new THREE.Color(0x050711);
-const encoreBackground = new THREE.Color(0x12091c);
+const nightBackground = new THREE.Color(IS_FOREST ? 0x07110f : 0x050711);
+const encoreBackground = new THREE.Color(IS_FOREST ? 0x10201a : 0x12091c);
 scene.background = nightBackground.clone();
-scene.fog = new THREE.FogExp2(0x070914, 0.032);
+scene.fog = new THREE.FogExp2(IS_FOREST ? 0x0a1815 : 0x070914, IS_FOREST ? 0.042 : 0.032);
 
 const camera = new THREE.OrthographicCamera(-8, 8, 5, -5, 0.1, 100);
 camera.position.set(0, 0.7, 12);
@@ -134,7 +158,11 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 ui.game.prepend(renderer.domElement);
 
-scene.add(new THREE.HemisphereLight(0x62789e, 0x07070b, 1.2));
+scene.add(new THREE.HemisphereLight(
+  IS_FOREST ? 0x789b9b : 0x62789e,
+  IS_FOREST ? 0x07100c : 0x07070b,
+  IS_FOREST ? 1.38 : 1.2,
+));
 
 const moon = new THREE.DirectionalLight(0xa8c9ff, 2.2);
 moon.position.set(-5, 10, 8);
@@ -146,7 +174,7 @@ moon.shadow.camera.top = 12;
 moon.shadow.camera.bottom = -8;
 scene.add(moon);
 
-const neon = new THREE.PointLight(0x39dff7, 26, 12, 2);
+const neon = new THREE.PointLight(IS_FOREST ? 0x8ce7c2 : 0x39dff7, BASE_GLOW_INTENSITY, 12, 2);
 neon.position.set(4, 2, 3);
 scene.add(neon);
 
@@ -185,6 +213,7 @@ const platforms = [];
 const notes = [];
 const shadows = [];
 const platformSentinels = [];
+const silenceMoths = [];
 const soundWaves = [];
 const checkpoints = [];
 const parallaxLayers = [];
@@ -298,6 +327,100 @@ function trapPauseFocus(event) {
 
 function mat(color, roughness = 0.76, metalness = 0.18) {
   return new THREE.MeshStandardMaterial({ color, roughness, metalness });
+}
+
+function createForest() {
+  const farLayer = new THREE.Group();
+  const midLayer = new THREE.Group();
+  const nearLayer = new THREE.Group();
+  const farTreeMaterial = new THREE.MeshBasicMaterial({ color: 0x0b201c });
+  const midTreeMaterial = new THREE.MeshBasicMaterial({ color: 0x102a23 });
+  const trunkMaterial = mat(0x18231d, 0.96, 0.02);
+  const canopyMaterial = mat(0x173228, 0.94, 0.02);
+
+  const moonHalo = new THREE.Mesh(
+    new THREE.CircleGeometry(2.5, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0xaee8dc,
+      transparent: true,
+      opacity: 0.1,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+  );
+  const moonDisc = new THREE.Mesh(
+    new THREE.CircleGeometry(1.45, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0xd8f4e8,
+      transparent: true,
+      opacity: 0.78,
+      depthWrite: false,
+    }),
+  );
+  moonHalo.position.set(7.2, 3.35, -11.5);
+  moonDisc.position.set(7.2, 3.35, -11.35);
+  farLayer.add(moonHalo, moonDisc);
+
+  const addTree = (layer, x, height, depth, material, width = 1) => {
+    const trunk = new THREE.Mesh(new THREE.BoxGeometry(width * 0.2, height, 0.5), material);
+    const crown = new THREE.Mesh(new THREE.ConeGeometry(width, height * 0.82, 9), material);
+    trunk.position.set(x, height / 2 - 2.15, depth);
+    crown.position.set(x, height * 0.72 - 0.8, depth + 0.02);
+    layer.add(trunk, crown);
+  };
+
+  for (let i = 0; i < 22; i += 1) {
+    addTree(
+      farLayer,
+      -13 + i * 2.8,
+      5.5 + ((i * 7) % 5) * 0.55,
+      -10.8 - (i % 3) * 0.35,
+      farTreeMaterial,
+      1.1 + (i % 3) * 0.18,
+    );
+  }
+
+  for (let i = 0; i < 18; i += 1) {
+    addTree(
+      midLayer,
+      -9 + i * 3,
+      5 + ((i * 5) % 4) * 0.72,
+      -7.2 - (i % 2) * 0.45,
+      midTreeMaterial,
+      1.2 + (i % 4) * 0.14,
+    );
+  }
+
+  [-3, 2.2, 7.8, 13.6, 19.4, 25, 31.5, 36].forEach((x, index) => {
+    const height = 4.8 + (index % 3) * 0.65;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.38, height, 9), trunkMaterial);
+    trunk.position.set(x, height / 2 - 2, -3.8 - (index % 2) * 0.5);
+    trunk.rotation.z = (index % 2 === 0 ? -1 : 1) * 0.035;
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(1.45, 12, 9), canopyMaterial);
+    crown.scale.set(1.25, 0.72, 0.62);
+    crown.position.set(x + (index % 2 ? 0.18 : -0.18), height - 1.15, trunk.position.z);
+    nearLayer.add(trunk, crown);
+  });
+
+  const haze = new THREE.Mesh(
+    new THREE.PlaneGeometry(52, 2.2),
+    new THREE.MeshBasicMaterial({
+      color: 0x4c927c,
+      transparent: true,
+      opacity: 0.055,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+  );
+  haze.position.set(15, -0.55, -8.6);
+  farLayer.add(haze);
+
+  scene.add(farLayer, midLayer, nearLayer);
+  parallaxLayers.push(
+    { group: farLayer, factor: 0.76, baseX: 0 },
+    { group: midLayer, factor: 0.48, baseX: 0 },
+    { group: nearLayer, factor: 0.2, baseX: 0 },
+  );
 }
 
 function createCity() {
@@ -443,13 +566,89 @@ function addPlatform(x, y, width, height, color = 0x171d2a) {
 
   const edge = new THREE.Mesh(
     new THREE.BoxGeometry(width, 0.045, 2.34),
-    new THREE.MeshBasicMaterial({ color: 0x2d6475 }),
+    new THREE.MeshBasicMaterial({ color: IS_FOREST ? 0x5f8a72 : 0x2d6475 }),
   );
   edge.position.set(x, y + height / 2 + 0.025, 0);
   scene.add(edge);
 }
 
+function createForestClearing() {
+  const bark = mat(0x263429, 0.88, 0.04);
+  const runeMaterial = new THREE.MeshStandardMaterial({
+    color: 0xb8f5df,
+    emissive: 0x4cbf97,
+    emissiveIntensity: 1.8,
+    roughness: 0.32,
+    metalness: 0.12,
+  });
+  const left = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.34, 4.1, 10), bark);
+  const right = left.clone();
+  left.position.set(STAGE_X - 1.72, 0.05, -0.2);
+  right.position.set(STAGE_X + 1.72, 0.05, -0.2);
+  left.rotation.z = -0.09;
+  right.rotation.z = 0.09;
+  const arch = new THREE.Mesh(new THREE.TorusGeometry(1.72, 0.19, 10, 42, Math.PI), bark);
+  arch.rotation.z = Math.PI;
+  arch.position.set(STAGE_X, 1.93, -0.18);
+  const rune = new THREE.Mesh(new THREE.TorusGeometry(1.25, 0.035, 8, 64), runeMaterial);
+  rune.position.set(STAGE_X, 0.45, 0.28);
+  const gateGlow = new THREE.PointLight(0x8fe8c5, 12, 7, 2);
+  gateGlow.position.set(STAGE_X, 0.45, 1.5);
+  scene.add(left, right, arch, rune, gateGlow);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 180;
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#08130f";
+  context.fillRect(0, 0, 512, 180);
+  context.strokeStyle = "#8fe8c5";
+  context.lineWidth = 7;
+  context.strokeRect(10, 10, 492, 160);
+  context.fillStyle = "#dcfff2";
+  context.font = "700 80px sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(ACTIVE_LEVEL.stageLabel, 256, 96);
+  const sign = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.8, 0.9),
+    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true }),
+  );
+  sign.position.set(STAGE_X, 2.52, 0.35);
+  scene.add(sign);
+
+  stageLights.forEach(({ color, offsetX }, index) => {
+    const forestColor = index === 1 ? 0x8fe8c5 : color;
+    const fixtureMaterial = new THREE.MeshStandardMaterial({
+      color: 0x17251e,
+      emissive: forestColor,
+      emissiveIntensity: 0.18,
+      roughness: 0.72,
+      metalness: 0.12,
+    });
+    const fixture = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 8), fixtureMaterial);
+    fixture.position.set(STAGE_X + offsetX * 0.72, 2.9, 0.3);
+    const beamMaterial = new THREE.MeshBasicMaterial({
+      color: forestColor,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const beam = new THREE.Mesh(new THREE.ConeGeometry(1.05, 4.4, 28, 1, true), beamMaterial);
+    beam.position.set(STAGE_X + offsetX * 0.4, 0.55, 0.22 - index * 0.04);
+    beam.rotation.z = (index - 1) * 0.06;
+    scene.add(fixture, beam);
+    stageLightBeams.push({ beam, fixtureMaterial });
+  });
+}
+
 function createStage() {
+  if (IS_FOREST) {
+    createForestClearing();
+    return;
+  }
   const stageMaterial = mat(0x292035, 0.55, 0.38);
   const pillarGeometry = new THREE.BoxGeometry(0.4, 4.2, 1.2);
   const left = new THREE.Mesh(pillarGeometry, stageMaterial);
@@ -616,6 +815,81 @@ function resetEncoreSparks() {
   encoreSparks.cursor = 0;
 }
 
+function createForestAtmosphere() {
+  const fogCanvas = document.createElement("canvas");
+  fogCanvas.width = 256;
+  fogCanvas.height = 128;
+  const fogContext = fogCanvas.getContext("2d");
+  const fogGradient = fogContext.createRadialGradient(128, 64, 5, 128, 64, 120);
+  fogGradient.addColorStop(0, "rgba(164, 225, 205, 0.58)");
+  fogGradient.addColorStop(0.5, "rgba(73, 130, 111, 0.22)");
+  fogGradient.addColorStop(1, "rgba(12, 35, 28, 0)");
+  fogContext.fillStyle = fogGradient;
+  fogContext.fillRect(0, 0, 256, 128);
+  const fogTexture = new THREE.CanvasTexture(fogCanvas);
+
+  [1, 8, 15, 22, 29, 36].forEach((x, index) => {
+    const material = new THREE.SpriteMaterial({
+      map: fogTexture,
+      color: index % 2 === 0 ? 0x8fd3bd : 0x739e91,
+      transparent: true,
+      opacity: 0.075,
+      depthWrite: false,
+    });
+    const fog = new THREE.Sprite(material);
+    fog.position.set(x, -0.65 + (index % 2) * 0.28, -2.9 - (index % 3) * 0.35);
+    fog.scale.set(10.5 + (index % 2) * 2, 2.55, 1);
+    fog.userData.baseX = x;
+    fog.userData.phase = index * 1.2;
+    scene.add(fog);
+    atmosphere.fog.push(fog);
+  });
+
+  [8.8, 20.5, 29.2].forEach((x, index) => {
+    const color = index === 1 ? 0x9cebd0 : 0xb7dff4;
+    const light = new THREE.PointLight(color, 7 + index, 7, 2);
+    light.position.set(x, 2.7 + (index % 2) * 0.45, 1.5);
+    const beam = new THREE.Mesh(
+      new THREE.ConeGeometry(1.4, 4.8, 28, 1, true),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.035,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    beam.position.set(x, 0.72, -0.4);
+    beam.rotation.z = index === 1 ? -0.08 : 0.07;
+    scene.add(light, beam);
+    atmosphere.lights.push({ light, base: 7 + index, phase: index * 1.7 });
+  });
+  atmosphere.lights.push({ light: neon, base: BASE_GLOW_INTENSITY, phase: 0 });
+
+  const moteCount = 120;
+  const motePositions = new Float32Array(moteCount * 3);
+  for (let i = 0; i < moteCount; i += 1) {
+    motePositions[i * 3] = -7 + Math.random() * 44;
+    motePositions[i * 3 + 1] = -1.7 + Math.random() * 7.4;
+    motePositions[i * 3 + 2] = -0.8 + Math.random() * 4;
+  }
+  const moteGeometry = new THREE.BufferGeometry();
+  moteGeometry.setAttribute("position", new THREE.BufferAttribute(motePositions, 3));
+  atmosphere.motes = new THREE.Points(
+    moteGeometry,
+    new THREE.PointsMaterial({
+      color: 0xb0ffd8,
+      size: 0.065,
+      transparent: true,
+      opacity: 0.72,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+  );
+  scene.add(atmosphere.motes);
+}
+
 function createAtmosphere() {
   const lampBody = mat(0x28354a, 0.72, 0.34);
   const lamps = [
@@ -769,7 +1043,8 @@ function createCheckpoint() {
 }
 
 function createWorld() {
-  createCity();
+  if (IS_FOREST) createForest();
+  else createCity();
   const { ground, stagePlatform } = ACTIVE_LEVEL;
   addPlatform(ground.x, ground.y, ground.width, ground.height, ground.color);
 
@@ -786,7 +1061,8 @@ function createWorld() {
   );
   createStage();
   encoreSparks = createEncoreSparks();
-  createAtmosphere();
+  if (IS_FOREST) createForestAtmosphere();
+  else createAtmosphere();
   createCheckpoint();
 }
 
@@ -1184,6 +1460,194 @@ function createPlatformSentinels() {
   );
 }
 
+function createSilenceMoth(spec) {
+  const group = new THREE.Group();
+  const visual = new THREE.Group();
+  const bodyMaterial = new THREE.MeshStandardMaterial({
+    color: 0x25162e,
+    emissive: 0x7d2d91,
+    emissiveIntensity: 0.9,
+    roughness: 0.72,
+  });
+  const wingMaterial = new THREE.MeshStandardMaterial({
+    color: 0x5a3a72,
+    emissive: 0xb64dbe,
+    emissiveIntensity: 0.72,
+    transparent: true,
+    opacity: 0.9,
+    roughness: 0.58,
+    side: THREE.DoubleSide,
+  });
+  const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xc4fff0 });
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.42, 4, 9), bodyMaterial);
+  body.rotation.z = Math.PI / 2;
+  const leftWing = new THREE.Mesh(new THREE.CircleGeometry(0.42, 18), wingMaterial);
+  const rightWing = leftWing.clone();
+  leftWing.scale.set(1.25, 0.72, 1);
+  rightWing.scale.copy(leftWing.scale);
+  leftWing.position.set(-0.35, 0.18, -0.02);
+  rightWing.position.set(0.35, 0.18, -0.02);
+  leftWing.rotation.z = -0.42;
+  rightWing.rotation.z = 0.42;
+  const eyeLeft = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), eyeMaterial);
+  const eyeRight = eyeLeft.clone();
+  eyeLeft.position.set(-0.12, -0.02, 0.17);
+  eyeRight.position.set(0.12, -0.02, 0.17);
+  const warningMaterial = new THREE.MeshBasicMaterial({
+    color: 0xff7bda,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const warningRing = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.035, 8, 48), warningMaterial);
+  warningRing.position.z = -0.08;
+  const glow = new THREE.PointLight(0xd45ad6, 0, 4.5, 2);
+  glow.position.z = 0.55;
+  visual.add(leftWing, rightWing, body, eyeLeft, eyeRight);
+  visual.traverse((object) => {
+    if (object.isMesh) object.castShadow = true;
+  });
+  group.add(warningRing, visual, glow);
+  group.position.set(spec.startX, spec.y, PLAYER_Z + 0.05);
+  group.visible = false;
+  scene.add(group);
+  silenceMoths.push({
+    ...spec,
+    group,
+    visual,
+    wings: [leftWing, rightWing],
+    bodyMaterial,
+    wingMaterial,
+    warningMaterial,
+    warningRing,
+    glow,
+    state: "waiting",
+    timer: 0,
+    stunTime: 0,
+    hitFlash: 0,
+    isMoth: true,
+  });
+}
+
+function createSilenceMoths() {
+  ACTIVE_LEVEL.silenceMoths.forEach(createSilenceMoth);
+}
+
+function resetSilenceMoth(moth) {
+  moth.state = "waiting";
+  moth.timer = 0;
+  moth.stunTime = 0;
+  moth.hitFlash = 0;
+  moth.group.visible = false;
+  moth.group.position.set(moth.startX, moth.y, PLAYER_Z + 0.05);
+  moth.group.rotation.set(0, 0, 0);
+  moth.visual.scale.set(1, 1, 1);
+  moth.warningMaterial.opacity = 0;
+  moth.glow.intensity = 0;
+}
+
+function updateSilenceMoths(delta, elapsed) {
+  silenceMoths.forEach((moth) => {
+    if (
+      moth.state === "waiting"
+      && started
+      && !completed
+      && !defeated
+      && player.position.x >= moth.triggerX
+      && player.position.x < moth.startX - 0.65
+    ) {
+      moth.state = "warning";
+      moth.timer = moth.warningDuration;
+      moth.group.visible = true;
+      showGuidance(
+        "Wing-glow means a Silence Moth is about to fly low. Jump it or use a sound wave.",
+        "New threat",
+        5200,
+      );
+      tone(176, 0.16, 0, "sine", 0.045);
+      tone(132, 0.24, 0.12, "triangle", 0.04);
+    }
+
+    if (!moth.group.visible) return;
+    moth.hitFlash = Math.max(0, moth.hitFlash - delta);
+    const wingBeat = Math.sin(elapsed * (moth.state === "flying" ? 18 : 9));
+    moth.wings[0].rotation.z = -0.42 - Math.abs(wingBeat) * 0.62;
+    moth.wings[1].rotation.z = 0.42 + Math.abs(wingBeat) * 0.62;
+    moth.visual.position.y = Math.sin(elapsed * 6.2) * 0.045;
+
+    if (moth.stunTime > 0 && moth.state !== "diverted" && moth.state !== "done") {
+      moth.state = "diverted";
+      moth.warningMaterial.opacity = 0;
+      moth.glow.color.set(0x65efff);
+      tone(587, 0.22, 0, "triangle", 0.075);
+      ui.mission.textContent = "The sound wave turns the Silence Moth away from the trail.";
+    }
+
+    if (moth.state === "warning") {
+      moth.timer -= delta;
+      const warningProgress = 1 - moth.timer / moth.warningDuration;
+      const pulse = (Math.sin(elapsed * 15) + 1) / 2;
+      moth.warningRing.scale.setScalar(0.82 + warningProgress * 0.34 + pulse * 0.08);
+      moth.warningMaterial.opacity = 0.22 + warningProgress * 0.48 + pulse * 0.18;
+      moth.glow.intensity = 3 + warningProgress * 7 + pulse * 2;
+      moth.bodyMaterial.emissiveIntensity = 0.9 + warningProgress * 2.4;
+      moth.wingMaterial.emissiveIntensity = 0.72 + warningProgress * 2;
+      if (moth.timer <= 0) {
+        moth.state = "flying";
+        moth.warningMaterial.opacity = 0;
+        moth.glow.intensity = 7;
+        tone(98, 0.32, 0, "sawtooth", 0.055);
+      }
+      return;
+    }
+
+    if (moth.state === "diverted") {
+      moth.stunTime = Math.max(0, moth.stunTime - delta);
+      moth.group.position.x += moth.direction * moth.speed * 0.32 * delta;
+      moth.group.position.y += 3.3 * delta;
+      moth.group.rotation.z += moth.direction * 2.4 * delta;
+      moth.visual.scale.multiplyScalar(1 - delta * 0.2);
+      if (moth.group.position.y > 5.2) {
+        moth.state = "done";
+        moth.group.visible = false;
+      }
+      return;
+    }
+
+    if (moth.state !== "flying" || completed || defeated) return;
+    moth.group.position.x += moth.direction * moth.speed * delta;
+    moth.group.position.y = moth.y + Math.sin(elapsed * 14) * 0.06;
+    moth.visual.rotation.z = moth.direction * -0.08;
+    moth.glow.intensity = 5.5 + Math.abs(wingBeat) * 2;
+
+    const playerLeft = player.position.x - PLAYER.width / 2;
+    const playerRight = player.position.x + PLAYER.width / 2;
+    const playerBottom = player.position.y - PLAYER.height / 2;
+    const playerTop = player.position.y + PLAYER.height / 2;
+    const mothLeft = moth.group.position.x - SILENCE_MOTH.width / 2;
+    const mothRight = moth.group.position.x + SILENCE_MOTH.width / 2;
+    const mothBottom = moth.group.position.y - SILENCE_MOTH.height / 2;
+    const mothTop = moth.group.position.y + SILENCE_MOTH.height / 2;
+    if (
+      playerRight > mothLeft
+      && playerLeft < mothRight
+      && playerTop > mothBottom
+      && playerBottom < mothTop
+    ) {
+      takeDamage(moth);
+    }
+
+    const passedEnd = moth.direction < 0
+      ? moth.group.position.x <= moth.endX
+      : moth.group.position.x >= moth.endX;
+    if (passedEnd) {
+      moth.state = "done";
+      moth.group.visible = false;
+    }
+  });
+}
+
 function createRain() {
   const dropCount = 280;
   const positions = new Float32Array(dropCount * 2 * 3);
@@ -1214,6 +1678,7 @@ const player = createPlayer();
 createNotes();
 createShadows();
 createPlatformSentinels();
+createSilenceMoths();
 const rain = createRain();
 const clock = new THREE.Clock();
 
@@ -1325,6 +1790,7 @@ function emitSoundWave() {
 
   let hits = 0;
   const stunTarget = (target) => {
+    if (target.isMoth && !target.group.visible) return;
     const dx = target.group.position.x - player.position.x;
     const dy = target.group.position.y - player.position.y;
     if (Math.hypot(dx, dy) > SOUND_WAVE.range) return;
@@ -1334,6 +1800,7 @@ function emitSoundWave() {
   };
   shadows.forEach(stunTarget);
   platformSentinels.forEach(stunTarget);
+  silenceMoths.forEach(stunTarget);
 
   tone(147, 0.34, 0, "sawtooth");
   tone(294, 0.3, 0.035, "triangle");
@@ -1343,7 +1810,7 @@ function emitSoundWave() {
       ? "The sound wave stunned a silence creature. Move while the path is open."
       : `The sound wave stunned ${hits} silence creatures. Move while the path is open.`;
   } else {
-    ui.mission.textContent = "The sound wave fades into the empty street.";
+    ui.mission.textContent = ACTIVE_LEVEL.emptyWaveText;
   }
 }
 
@@ -1457,7 +1924,7 @@ function resetStageLighting() {
     beam.material.opacity = 0;
     fixtureMaterial.emissiveIntensity = 0.18;
   });
-  neon.intensity = 26;
+  neon.intensity = BASE_GLOW_INTENSITY;
   scene.background.copy(nightBackground);
   resetEncoreSparks();
 }
@@ -1477,6 +1944,7 @@ function resetThreats() {
     sentinel.stunTime = 0;
     sentinel.hitFlash = 0;
   });
+  silenceMoths.forEach(resetSilenceMoth);
   soundWaves.splice(0).forEach(removeSoundWave);
 }
 
@@ -1649,7 +2117,7 @@ function reset() {
   ui.noteCount.textContent = `0 / ${TOTAL_NOTES}`;
   updateHealth();
   updateSoundEnergy();
-  ui.mission.textContent = "Collect lost notes and enter the LIVE door. Jump shadows or break through with sound.";
+  ui.mission.textContent = ACTIVE_LEVEL.missionText;
   ui.encore.hidden = true;
   ui.gameOver.hidden = true;
   ui.pauseMenu.hidden = true;
@@ -1691,7 +2159,7 @@ function finish() {
   encoreEntryShoulders.back.copy(backArm.quaternion);
   encoreEntryShoulders.front.copy(frontArm.quaternion);
   resetStageLighting();
-  ui.mission.textContent = "The silence breaks. The district can hear you.";
+  ui.mission.textContent = ACTIVE_LEVEL.completeMission;
   hideGuidance();
   hideCheckpointNotice();
   ui.pauseButton.hidden = true;
@@ -1699,8 +2167,8 @@ function finish() {
   const score = calculateFinalScore();
   const missingNotes = TOTAL_NOTES - collected;
   ui.encoreScore.textContent = collected === TOTAL_NOTES
-    ? "Every lost note reached the stage."
-    : `You carried ${collected} of ${TOTAL_NOTES} lost notes to the stage.`;
+    ? `Every lost note reached the ${ACTIVE_LEVEL.noteDestination}.`
+    : `You carried ${collected} of ${TOTAL_NOTES} lost notes to the ${ACTIVE_LEVEL.noteDestination}.`;
   ui.encoreTotalScore.textContent = score.total.toLocaleString("en-GB");
   ui.encoreNotes.textContent = `${collected} / ${TOTAL_NOTES}`;
   ui.encoreNotePoints.textContent = `+${score.notePoints.toLocaleString("en-GB")} pts`;
@@ -1710,12 +2178,12 @@ function finish() {
   ui.encoreBonus.classList.toggle("is-earned", score.fullSetBonus > 0);
   ui.encoreBonus.textContent = score.fullSetBonus > 0
     ? `Perfect collection · +${score.fullSetBonus} full-set bonus`
-    : `${missingNotes} ${missingNotes === 1 ? "note" : "notes"} still missing · collect all seven for a +${LEVEL_SCORE.allNotesBonus} bonus`;
-  ui.nextLocationScore.textContent = `This district remembers your encore: ${score.total.toLocaleString("en-GB")} points.`;
+    : `${missingNotes} ${missingNotes === 1 ? "note" : "notes"} still missing · collect all ${TOTAL_NOTES} for a +${LEVEL_SCORE.allNotesBonus} bonus`;
+  ui.nextLocationScore.textContent = `${ACTIVE_LEVEL.resultMemory}: ${score.total.toLocaleString("en-GB")} points.`;
 }
 
 function showNextLocation() {
-  if (!completed || transitioningToNext || !ui.nextLocation.hidden) return;
+  if (!NEXT_LEVEL || !completed || transitioningToNext || !ui.nextLocation.hidden) return;
   transitioningToNext = true;
   ui.continueJourney.disabled = true;
   ui.game.classList.add("is-transitioning");
@@ -1745,7 +2213,7 @@ function updatePlayer(delta) {
   );
   if (!exitHintShown && player.position.x > EXIT_HINT_X) {
     exitHintShown = true;
-    showGuidance("Step through the glowing LIVE door on the ground to finish the level.", "Final step", 6000);
+    showGuidance(ACTIVE_LEVEL.exitGuidance, ACTIVE_LEVEL.exitGuidanceLabel, 6000);
   }
   player.rotation.y = THREE.MathUtils.lerp(player.rotation.y, facing === 1 ? 0 : Math.PI, 0.2);
 
@@ -2064,7 +2532,11 @@ function animateEncore(delta, elapsed) {
     fixtureMaterial.emissiveIntensity = 0.18 + progress * 2.5 + notePulse * 2.4;
   });
 
-  neon.intensity = THREE.MathUtils.lerp(26, 58, overallProgress);
+  neon.intensity = THREE.MathUtils.lerp(
+    BASE_GLOW_INTENSITY,
+    IS_FOREST ? 38 : 58,
+    overallProgress,
+  );
   scene.background.copy(nightBackground).lerp(encoreBackground, overallProgress);
 
   const { visual, guitar, frontArm, backArm, headRig } = player.userData.rig;
@@ -2167,6 +2639,7 @@ function animate() {
   updateCheckpoints(elapsed);
   updateShadows(delta, elapsed);
   updatePlatformSentinels(delta, elapsed);
+  updateSilenceMoths(delta, elapsed);
   updateSoundWaves(delta);
   updateRain(delta);
   const targetX = THREE.MathUtils.clamp(player.position.x + 2, 0, CAMERA_MAX_X);
@@ -2268,6 +2741,14 @@ ui.start.addEventListener("click", () => {
 });
 ui.restart.addEventListener("click", reset);
 ui.continueJourney.addEventListener("click", showNextLocation);
+ui.nextEnter.addEventListener("click", () => {
+  if (!NEXT_LEVEL) return;
+  const nextUrl = new URL(window.location.href);
+  nextUrl.search = "";
+  nextUrl.searchParams.set("level", NEXT_LEVEL.id);
+  nextUrl.searchParams.set("rev", "forest-prototype-1");
+  window.location.assign(nextUrl);
+});
 ui.nextReplay.addEventListener("click", reset);
 ui.pauseButton.addEventListener("click", pauseGame);
 ui.resume.addEventListener("click", resumeGame);
