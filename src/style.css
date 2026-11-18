@@ -445,7 +445,8 @@ h1 {
 }
 
 
-.encore-actions {
+.encore-actions,
+.next-location-actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -970,7 +971,8 @@ kbd {
     grid-template-columns: 1fr 1fr;
   }
 
-  .encore-actions {
+  .encore-actions,
+  .next-location-actions {
     flex-direction: column;
   }
 
