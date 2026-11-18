@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#05060b" />
     <title>The Last Encore</title>
-    <link rel="stylesheet" href="./src/style.css?v=level-results-1" />
+    <link rel="stylesheet" href="./src/style.css?v=next-location-transition-1" />
     <script type="importmap">
       {
         "imports": {
@@ -108,7 +108,24 @@
           </div>
           <p class="encore-bonus" id="encore-bonus"></p>
         </div>
-        <button id="restart-button" type="button">Play it again</button>
+        <div class="encore-actions">
+          <button id="continue-button" type="button">Continue journey</button>
+          <button class="secondary-button" id="restart-button" type="button">Play it again</button>
+        </div>
+      </section>
+
+      <section class="next-location" id="next-location" tabindex="-1" hidden>
+        <p class="kicker">The signal continues</p>
+        <h2>Another place is listening.</h2>
+        <p class="next-location-copy">Your encore carries beyond the restored district and disappears into the static.</p>
+        <div class="journey-route" aria-label="Journey progress">
+          <span class="is-restored">District restored</span>
+          <i aria-hidden="true">→</i>
+          <span>Next location</span>
+        </div>
+        <p class="next-location-status">Signal detected · destination still unknown</p>
+        <p class="next-location-score" id="next-location-score"></p>
+        <button id="next-replay-button" type="button">Replay this district</button>
       </section>
 
       <section class="game-over" id="game-over" hidden>
@@ -171,8 +188,11 @@
         <small>Notes, sound charges and return point saved</small>
       </div>
 
+      <div class="scene-transition" id="scene-transition" aria-hidden="true">
+        <span></span>
+      </div>
       <div class="vignette" aria-hidden="true"></div>
     </main>
-    <script type="module" src="./src/main.js?v=level-results-1"></script>
+    <script type="module" src="./src/main.js?v=next-location-transition-1"></script>
   </body>
 </html>
