@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#05060b" />
     <title>The Last Encore</title>
-    <link rel="stylesheet" href="./src/style.css?v=checkpoint-note-polish-1" />
+    <link rel="stylesheet" href="./src/style.css?v=level-results-1" />
     <script type="importmap">
       {
         "imports": {
@@ -82,7 +82,32 @@
       <section class="encore" id="encore" hidden>
         <p class="kicker">District restored</p>
         <h2>One song closer.</h2>
-        <p id="encore-score"></p>
+        <p class="encore-copy" id="encore-score"></p>
+        <div class="encore-results" aria-label="Level results">
+          <div class="encore-total">
+            <span>Final score</span>
+            <strong id="encore-total-score">0</strong>
+            <small>points</small>
+          </div>
+          <div class="encore-stats">
+            <div class="encore-stat encore-stat-notes">
+              <span>Lost notes</span>
+              <strong id="encore-notes">0 / 7</strong>
+              <small id="encore-note-points">+0 pts</small>
+            </div>
+            <div class="encore-stat">
+              <span>Rhythm left</span>
+              <strong id="encore-rhythm">0 / 3</strong>
+              <small id="encore-rhythm-points">+0 pts</small>
+            </div>
+            <div class="encore-stat">
+              <span>Sound waves</span>
+              <strong id="encore-waves">0</strong>
+              <small>used</small>
+            </div>
+          </div>
+          <p class="encore-bonus" id="encore-bonus"></p>
+        </div>
         <button id="restart-button" type="button">Play it again</button>
       </section>
 
@@ -148,6 +173,6 @@
 
       <div class="vignette" aria-hidden="true"></div>
     </main>
-    <script type="module" src="./src/main.js?v=stage-solo-arm-depth-2"></script>
+    <script type="module" src="./src/main.js?v=level-results-1"></script>
   </body>
 </html>
