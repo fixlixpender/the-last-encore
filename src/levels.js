@@ -1,9 +1,30 @@
+const LEVEL_IDS = Object.freeze({
+  district: "district",
+  forest: "moonlitForest",
+});
+
 export const LEVELS = Object.freeze({
-  district: Object.freeze({
-    id: "district",
+  [LEVEL_IDS.district]: Object.freeze({
+    id: LEVEL_IDS.district,
     name: "Restored District",
+    theme: "city",
     status: "playable",
-    nextLevelId: "moonlitForest",
+    nextLevelId: LEVEL_IDS.forest,
+    introKicker: "The city has forgotten how to sing.",
+    introTagline: "But the show must go on.",
+    introGoal: "Lost notes recharge your sound. Enter the glowing LIVE door to finish.",
+    startLabel: "Enter the silence",
+    missionText: "Collect lost notes and enter the LIVE door. Jump shadows or break through with sound.",
+    exitGuidance: "Step through the glowing LIVE door on the ground to finish the level.",
+    exitGuidanceLabel: "Final step",
+    completeMission: "The silence breaks. The district can hear you.",
+    resultKicker: "District restored",
+    resultTitle: "One song closer.",
+    resultMemory: "This district remembers your encore",
+    replayLabel: "Play it again",
+    noteDestination: "stage",
+    emptyWaveText: "The sound wave fades into the empty street.",
+    stageLabel: "LIVE",
     stageX: 46.2,
     levelMaxX: 49.2,
     cameraStageOffset: 2.7,
@@ -41,12 +62,31 @@ export const LEVELS = Object.freeze({
       { startX: 22.1, platformTop: 1.44, patrolMin: 21.55, patrolMax: 24.85, direction: 1 },
       { startX: 42.8, platformTop: 1.35, patrolMin: 40.55, patrolMax: 43.45, direction: -1 },
     ],
+    silenceMoths: [],
   }),
-  moonlitForest: Object.freeze({
-    id: "moonlitForest",
+  [LEVEL_IDS.forest]: Object.freeze({
+    id: LEVEL_IDS.forest,
     name: "Moonlit Forest",
-    status: "planned",
-    lengthScale: 1.32,
+    theme: "forest",
+    status: "prototype",
+    nextLevelId: null,
+    targetLengthScale: 1.32,
+    targetLevelMaxX: 65,
+    introKicker: "The city lights fade behind you.",
+    introTagline: "The forest is listening.",
+    introGoal: "Watch for the wing-glow warning. Jump the low flight or turn it aside with sound.",
+    startLabel: "Follow the moonlight",
+    missionText: "Follow the moonlit trail. Learn the warning of the Silence Moth and reach the glowing arch.",
+    exitGuidance: "Step through the moonlit arch to complete this first forest path.",
+    exitGuidanceLabel: "Moonlit arch",
+    completeMission: "The first silence breaks. The forest remembers your song.",
+    resultKicker: "First trail restored",
+    resultTitle: "The forest remembers.",
+    resultMemory: "This moonlit path remembers your encore",
+    replayLabel: "Walk the trail again",
+    noteDestination: "clearing",
+    emptyWaveText: "The sound wave disappears between the trees.",
+    stageLabel: "TRAIL",
     tagline: "A moonlit path is calling through the trees.",
     teaserCopy: "Beyond the restored district, moonlight breaks through the trees and a quieter signal answers your encore.",
     routeStatus: "Moonlit signal located · route forming",
@@ -56,8 +96,53 @@ export const LEVELS = Object.freeze({
       firstEncounter: "isolated low flyby with a clear visual and audio warning",
       laterCombinations: ["ground shadows", "platform sentinels"],
     },
+    stageX: 30,
+    levelMaxX: 33,
+    cameraStageOffset: 2.7,
+    exitHintOffset: 3.7,
+    exitDoorHalfWidth: 1.2,
+    checkpointX: 14,
+    ground: { x: 15, y: -2.65, width: 40, height: 1.3, color: 0x101a18 },
+    stagePlatform: { y: -2.275, width: 7.4, height: 0.55, color: 0x20312a },
+    platforms: [
+      { x: 4.3, top: 0.72, width: 2.8, height: 0.52, color: 0x25322a },
+      { x: 9.7, top: 1.24, width: 3.4, height: 0.62, color: 0x2d382d },
+      { x: 16.2, top: 0.86, width: 3.5, height: 0.56, color: 0x27352c },
+      { x: 22.4, top: 1.58, width: 4.2, height: 0.72, color: 0x303a30 },
+      { x: 27, top: 0.92, width: 2.8, height: 0.52, color: 0x29362e },
+    ],
+    notes: [
+      { x: 2.8, y: -0.9 },
+      { x: 4.3, y: 1.82 },
+      { x: 10, y: 2.36 },
+      { x: 18.1, y: 1.86 },
+      { x: 22.4, y: 2.72 },
+    ],
+    shadows: [
+      { startX: 18.8, patrolMin: 16.9, patrolMax: 21, direction: 1 },
+    ],
+    platformSentinels: [
+      { startX: 23.2, platformTop: 1.58, patrolMin: 20.8, patrolMax: 24, direction: -1 },
+    ],
+    silenceMoths: [
+      {
+        triggerX: 5.6,
+        startX: 12.3,
+        endX: 5.3,
+        y: -0.92,
+        direction: -1,
+        warningDuration: 1.1,
+        speed: 5.2,
+      },
+    ],
   }),
 });
 
-export const ACTIVE_LEVEL = LEVELS.district;
-export const NEXT_LEVEL = LEVELS[ACTIVE_LEVEL.nextLevelId];
+const requestedLevelId = typeof window === "undefined"
+  ? LEVEL_IDS.district
+  : new URLSearchParams(window.location.search).get("level");
+
+export const ACTIVE_LEVEL = LEVELS[requestedLevelId] || LEVELS[LEVEL_IDS.district];
+export const NEXT_LEVEL = ACTIVE_LEVEL.nextLevelId
+  ? LEVELS[ACTIVE_LEVEL.nextLevelId]
+  : null;
