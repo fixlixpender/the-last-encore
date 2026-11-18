@@ -76,6 +76,10 @@ const ui = {
   encoreRhythmPoints: document.querySelector("#encore-rhythm-points"),
   encoreWaves: document.querySelector("#encore-waves"),
   encoreBonus: document.querySelector("#encore-bonus"),
+  continueJourney: document.querySelector("#continue-button"),
+  nextLocation: document.querySelector("#next-location"),
+  nextLocationScore: document.querySelector("#next-location-score"),
+  nextReplay: document.querySelector("#next-replay-button"),
   gameOverScore: document.querySelector("#game-over-score"),
   soundControl: document.querySelector("#sound-control"),
   soundControlLabel: document.querySelector("#sound-control-label"),
@@ -193,6 +197,8 @@ let soundWaveCooldown = 0;
 let checkpointState = null;
 let guidanceTimer = null;
 let checkpointNoticeTimer = null;
+let nextTransitionTimer = null;
+let transitioningToNext = false;
 let exitHintShown = false;
 let paused = false;
 let gameTime = 0;
@@ -1606,6 +1612,12 @@ function takeDamage(shadow) {
 }
 
 function reset() {
+  clearTimeout(nextTransitionTimer);
+  nextTransitionTimer = null;
+  transitioningToNext = false;
+  ui.continueJourney.disabled = false;
+  ui.game.classList.remove("is-transitioning");
+  ui.nextLocation.hidden = true;
   completed = false;
   defeated = false;
   collected = 0;
@@ -1694,6 +1706,23 @@ function finish() {
   ui.encoreBonus.textContent = score.fullSetBonus > 0
     ? `Perfect collection · +${score.fullSetBonus} full-set bonus`
     : `${missingNotes} ${missingNotes === 1 ? "note" : "notes"} still missing · collect all seven for a +${LEVEL_SCORE.allNotesBonus} bonus`;
+  ui.nextLocationScore.textContent = `This district remembers your encore: ${score.total.toLocaleString("en-GB")} points.`;
+}
+
+function showNextLocation() {
+  if (!completed || transitioningToNext || !ui.nextLocation.hidden) return;
+  transitioningToNext = true;
+  ui.continueJourney.disabled = true;
+  ui.game.classList.add("is-transitioning");
+  nextTransitionTimer = setTimeout(() => {
+    ui.encore.hidden = true;
+    ui.nextLocation.hidden = false;
+    ui.game.classList.remove("is-transitioning");
+    transitioningToNext = false;
+    ui.nextLocation.focus();
+    tone(147, 0.46, 0, "sine", 0.045);
+    tone(220, 0.52, 0.12, "triangle", 0.035);
+  }, 560);
 }
 
 function updatePlayer(delta) {
@@ -2233,6 +2262,8 @@ ui.start.addEventListener("click", () => {
   tone(110, 0.45, 0, "sine");
 });
 ui.restart.addEventListener("click", reset);
+ui.continueJourney.addEventListener("click", showNextLocation);
+ui.nextReplay.addEventListener("click", reset);
 ui.pauseButton.addEventListener("click", pauseGame);
 ui.resume.addEventListener("click", resumeGame);
 ui.restartLevel.addEventListener("click", () => {
