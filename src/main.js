@@ -1,6 +1,7 @@
 import * as THREE from "three";
+import { ACTIVE_LEVEL, NEXT_LEVEL } from "./levels.js?v=level-config-1";
 
-const TOTAL_NOTES = 7;
+const TOTAL_NOTES = ACTIVE_LEVEL.notes.length;
 const MAX_HEALTH = 3;
 const MAX_SOUND_ENERGY = 2;
 const STARTING_SOUND_ENERGY = 1;
@@ -11,12 +12,15 @@ const SOUND_WAVE = { cost: 1, range: 3.6, duration: 0.52, cooldown: 1.1, stun: 2
 const LEVEL_SCORE = { note: 200, allNotesBonus: 600, health: 100 };
 const NOTE_PROXIMITY = { radius: 3.2, collectRadius: 0.9 };
 const DAMAGE = { invulnerability: 1.35, knockback: 1.55, bounce: 6.2 };
-const STAGE_X = 46.2;
-const LEVEL_MAX_X = 49.2;
-const CAMERA_MAX_X = STAGE_X - 2.7;
-const EXIT_HINT_X = STAGE_X - 3.7;
-const EXIT_DOOR = { minX: STAGE_X - 1.2, maxX: STAGE_X + 1.2 };
-const CHECKPOINT_X = 20.8;
+const STAGE_X = ACTIVE_LEVEL.stageX;
+const LEVEL_MAX_X = ACTIVE_LEVEL.levelMaxX;
+const CAMERA_MAX_X = STAGE_X - ACTIVE_LEVEL.cameraStageOffset;
+const EXIT_HINT_X = STAGE_X - ACTIVE_LEVEL.exitHintOffset;
+const EXIT_DOOR = {
+  minX: STAGE_X - ACTIVE_LEVEL.exitDoorHalfWidth,
+  maxX: STAGE_X + ACTIVE_LEVEL.exitDoorHalfWidth,
+};
+const CHECKPOINT_X = ACTIVE_LEVEL.checkpointX;
 const PLAYER_Z = 2;
 const PLAYER_START_Y = -0.98;
 const GRAVITY = 18;
@@ -78,6 +82,10 @@ const ui = {
   encoreBonus: document.querySelector("#encore-bonus"),
   continueJourney: document.querySelector("#continue-button"),
   nextLocation: document.querySelector("#next-location"),
+  nextLocationName: document.querySelector("#next-location-name"),
+  nextLocationCopy: document.querySelector("#next-location-copy"),
+  nextLocationRouteName: document.querySelector("#next-location-route-name"),
+  nextLocationStatus: document.querySelector("#next-location-status"),
   nextLocationScore: document.querySelector("#next-location-score"),
   nextReplay: document.querySelector("#next-replay-button"),
   gameOverScore: document.querySelector("#game-over-score"),
@@ -102,6 +110,11 @@ const ui = {
   touchJump: document.querySelector("#touch-jump"),
   touchSound: document.querySelector("#touch-sound"),
 };
+
+ui.nextLocationName.textContent = NEXT_LEVEL.name;
+ui.nextLocationCopy.textContent = NEXT_LEVEL.teaserCopy;
+ui.nextLocationRouteName.textContent = NEXT_LEVEL.name;
+ui.nextLocationStatus.textContent = NEXT_LEVEL.routeStatus;
 
 const scene = new THREE.Scene();
 const nightBackground = new THREE.Color(0x050711);
@@ -757,22 +770,20 @@ function createCheckpoint() {
 
 function createWorld() {
   createCity();
-  addPlatform(21, -2.65, 56, 1.3, 0x121722);
+  const { ground, stagePlatform } = ACTIVE_LEVEL;
+  addPlatform(ground.x, ground.y, ground.width, ground.height, ground.color);
 
-  [
-    { x: 6.2, top: 0.99, width: 2.8, height: 0.34 },
-    { x: 11.7, top: 1.49, width: 4.1, height: 0.72 },
-    { x: 17.4, top: 0.99, width: 3.2, height: 0.46 },
-    { x: 23.2, top: 1.44, width: 4.4, height: 0.82 },
-    { x: 28.2, top: 0.99, width: 2.5, height: 0.58 },
-    { x: 33, top: 1.35, width: 3.4, height: 0.52 },
-    { x: 37.6, top: 2.25, width: 2.8, height: 0.62 },
-    { x: 42, top: 1.35, width: 3.6, height: 0.72 },
-  ].forEach(({ x, top, width, height }) => {
-    addPlatform(x, top - height / 2, width, height);
+  ACTIVE_LEVEL.platforms.forEach(({ x, top, width, height, color }) => {
+    addPlatform(x, top - height / 2, width, height, color);
   });
 
-  addPlatform(STAGE_X, -2.275, 7.4, 0.55, 0x21162a);
+  addPlatform(
+    STAGE_X,
+    stagePlatform.y,
+    stagePlatform.width,
+    stagePlatform.height,
+    stagePlatform.color,
+  );
   createStage();
   encoreSparks = createEncoreSparks();
   createAtmosphere();
@@ -1001,15 +1012,7 @@ function addNote(x, y, phase) {
 }
 
 function createNotes() {
-  [
-    [3.3, -0.9],
-    [6.2, 2.05],
-    [12, 2.35],
-    [23.2, 2.3],
-    [29.5, 2.05],
-    [37.6, 3.3],
-    [42, 2.4],
-  ].forEach(([x, y], index) => addNote(x, y, index * 1.2));
+  ACTIVE_LEVEL.notes.forEach(({ x, y }, index) => addNote(x, y, index * 1.2));
 }
 
 function createShadowCreature(startX, patrolMin, patrolMax, direction = 1) {
@@ -1093,9 +1096,9 @@ function createShadowCreature(startX, patrolMin, patrolMax, direction = 1) {
 }
 
 function createShadows() {
-  createShadowCreature(16.2, 14.2, 19.2, 1);
-  createShadowCreature(26.4, 24.7, 29.5, -1);
-  createShadowCreature(35.2, 32.3, 38.4, 1);
+  ACTIVE_LEVEL.shadows.forEach(({ startX, patrolMin, patrolMax, direction }) => {
+    createShadowCreature(startX, patrolMin, patrolMax, direction);
+  });
 }
 
 function createPlatformSentinel(startX, platformTop, patrolMin, patrolMax, direction = 1) {
@@ -1174,9 +1177,11 @@ function createPlatformSentinel(startX, platformTop, patrolMin, patrolMax, direc
 }
 
 function createPlatformSentinels() {
-  createPlatformSentinel(12.7, 1.49, 10.25, 13.1, -1);
-  createPlatformSentinel(22.1, 1.44, 21.55, 24.85, 1);
-  createPlatformSentinel(42.8, 1.35, 40.55, 43.45, -1);
+  ACTIVE_LEVEL.platformSentinels.forEach(
+    ({ startX, platformTop, patrolMin, patrolMax, direction }) => {
+      createPlatformSentinel(startX, platformTop, patrolMin, patrolMax, direction);
+    },
+  );
 }
 
 function createRain() {
