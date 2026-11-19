@@ -30,7 +30,34 @@ export const LEVELS = Object.freeze({
     cameraStageOffset: 2.7,
     exitHintOffset: 3.7,
     exitDoorHalfWidth: 1.2,
-    checkpointX: 20.8,
+    checkpoints: [
+      { id: "district-beacon", x: 20.8, respawnOffset: 0.75, activationRadius: 1.05 },
+    ],
+    objectives: [
+      {
+        id: "recover-notes",
+        type: "collect-notes",
+        target: "all",
+        optional: true,
+        progressText: "A lost note restored one sound charge.",
+        completeText: "Every lost note is with you. Take them to the stage.",
+      },
+      {
+        id: "reach-exit",
+        type: "reach-exit",
+        target: 1,
+        startText: "Collect lost notes and enter the LIVE door. Jump shadows or break through with sound.",
+        completeText: "The silence breaks. The district can hear you.",
+      },
+    ],
+    checkpointText: {
+      activated: "The sound beacon remembers your progress. Your rhythm is restored.",
+      respawned: "The sound beacon brings you back. The next shadow is ahead.",
+      guidance: "You kept the notes and sound charges saved at the beacon.",
+      guidanceLabel: "Checkpoint",
+      defeated: "The silence broke your rhythm. The sound beacon is still listening.",
+      savedProgress: "The beacon remembers {collected} of {total} lost notes.",
+    },
     ground: { x: 21, y: -2.65, width: 56, height: 1.3, color: 0x121722 },
     stagePlatform: { y: -2.275, width: 7.4, height: 0.55, color: 0x21162a },
     platforms: [
@@ -100,7 +127,35 @@ export const LEVELS = Object.freeze({
     cameraStageOffset: 2.7,
     exitHintOffset: 3.7,
     exitDoorHalfWidth: 1.2,
-    checkpointXs: [14, 40],
+    checkpoints: [
+      { id: "forest-edge-beacon", x: 14, respawnOffset: 0.75, activationRadius: 1.05 },
+      { id: "deep-forest-beacon", x: 40, respawnOffset: 0.75, activationRadius: 1.05 },
+    ],
+    objectives: [
+      {
+        id: "recover-notes",
+        type: "collect-notes",
+        target: "all",
+        optional: true,
+        progressText: "A lost note restored one sound charge.",
+        completeText: "Every lost note is with you. Take them to the clearing.",
+      },
+      {
+        id: "reach-exit",
+        type: "reach-exit",
+        target: 1,
+        startText: "Cross the moonlit forest, recover its lost notes and reach the glowing arch.",
+        completeText: "The silence breaks. Moonlit Forest remembers your song.",
+      },
+    ],
+    checkpointText: {
+      activated: "The moonlit beacon remembers your progress. Your rhythm is restored.",
+      respawned: "The moonlit beacon brings you back. The trail continues ahead.",
+      guidance: "Your notes and sound charges are safe in the moonlit beacon.",
+      guidanceLabel: "Checkpoint",
+      defeated: "The forest broke your rhythm. The last moonlit beacon is still listening.",
+      savedProgress: "The moonlit beacon remembers {collected} of {total} lost notes.",
+    },
     ground: { x: 30, y: -2.65, width: 70, height: 1.3, color: 0x101a18 },
     stagePlatform: { y: -2.275, width: 7.4, height: 0.55, color: 0x20312a },
     platforms: [
