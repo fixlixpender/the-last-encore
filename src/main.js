@@ -23,6 +23,7 @@ const EXIT_DOOR = {
   minX: STAGE_X - ACTIVE_LEVEL.exitDoorHalfWidth,
   maxX: STAGE_X + ACTIVE_LEVEL.exitDoorHalfWidth,
 };
+const EXIT_FLOOR_TOP = ACTIVE_LEVEL.stagePlatform.y + ACTIVE_LEVEL.stagePlatform.height / 2;
 const CHECKPOINTS = ACTIVE_LEVEL.checkpointXs || [ACTIVE_LEVEL.checkpointX];
 const PLAYER_Z = 2;
 const PLAYER_START_Y = -0.98;
@@ -2247,7 +2248,14 @@ function updatePlayer(delta) {
   animateCharacter(delta, clock.elapsedTime, direction);
   const insideExitDoor = player.position.x >= EXIT_DOOR.minX
     && player.position.x <= EXIT_DOOR.maxX;
-  if (insideExitDoor && onGround) finish();
+  const playerFeet = player.position.y - PLAYER.height / 2;
+  const standingOnExitFloor = onGround && Math.abs(playerFeet - EXIT_FLOOR_TOP) < 0.12;
+  if (insideExitDoor && standingOnExitFloor) {
+    player.position.set(STAGE_X, EXIT_FLOOR_TOP + PLAYER.height / 2, PLAYER_Z);
+    velocityY = 0;
+    onGround = true;
+    finish();
+  }
 }
 
 function animateCharacter(delta, elapsed, direction) {
