@@ -105,26 +105,23 @@ export const LEVELS = Object.freeze({
     stagePlatform: { y: -2.275, width: 7.4, height: 0.55, color: 0x20312a },
     platforms: [
       { x: 4.3, top: 0.72, width: 2.8, height: 0.52, color: 0x25322a },
-      { x: 9.7, top: 1.24, width: 3.4, height: 0.62, color: 0x2d382d },
       { x: 16.2, top: 0.86, width: 3.5, height: 0.56, color: 0x27352c },
       { x: 22.4, top: 1.58, width: 4.2, height: 0.72, color: 0x303a30 },
       { x: 27, top: 0.92, width: 2.8, height: 0.52, color: 0x29362e },
-      { x: 32.6, top: 1.38, width: 4, height: 0.68, color: 0x2b382e },
       { x: 38.4, top: 0.78, width: 3, height: 0.5, color: 0x243229 },
       { x: 43.7, top: 2.05, width: 4.6, height: 0.76, color: 0x313d32 },
-      { x: 49.4, top: 1.08, width: 2.8, height: 0.56, color: 0x29372d },
-      { x: 55.2, top: 1.62, width: 4.1, height: 0.72, color: 0x303c31 },
+      { x: 55.7, top: 1.62, width: 3.4, height: 0.72, color: 0x303c31 },
       { x: 59.3, top: 0.86, width: 2.8, height: 0.52, color: 0x26342b },
     ],
     notes: [
       { x: 2.8, y: -0.9 },
       { x: 4.3, y: 1.82 },
-      { x: 10, y: 2.36 },
+      { x: 10, y: -0.9 },
       { x: 18.1, y: 1.86 },
       { x: 22.4, y: 2.72 },
-      { x: 32.6, y: 2.48 },
+      { x: 32.6, y: -0.9 },
       { x: 43.7, y: 3.2 },
-      { x: 50.2, y: 2.15 },
+      { x: 50.2, y: -0.9 },
       { x: 56.2, y: 2.75 },
     ],
     shadows: [
@@ -135,7 +132,7 @@ export const LEVELS = Object.freeze({
     platformSentinels: [
       { startX: 23.2, platformTop: 1.58, patrolMin: 20.8, patrolMax: 24, direction: -1 },
       { startX: 44.5, platformTop: 2.05, patrolMin: 42, patrolMax: 45.5, direction: 1 },
-      { startX: 55.8, platformTop: 1.62, patrolMin: 53.5, patrolMax: 56.8, direction: -1 },
+      { startX: 56.3, platformTop: 1.62, patrolMin: 54.3, patrolMax: 57.1, direction: -1 },
     ],
     silenceMoths: [
       {
