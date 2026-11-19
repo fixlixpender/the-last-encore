@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { ACTIVE_LEVEL, NEXT_LEVEL } from "./levels.js?v=moth-flight-1";
+import { ACTIVE_LEVEL, NEXT_LEVEL } from "./levels.js?v=forest-full-route-1";
 
 const TOTAL_NOTES = ACTIVE_LEVEL.notes.length;
 const IS_FOREST = ACTIVE_LEVEL.theme === "forest";
@@ -23,7 +23,7 @@ const EXIT_DOOR = {
   minX: STAGE_X - ACTIVE_LEVEL.exitDoorHalfWidth,
   maxX: STAGE_X + ACTIVE_LEVEL.exitDoorHalfWidth,
 };
-const CHECKPOINT_X = ACTIVE_LEVEL.checkpointX;
+const CHECKPOINTS = ACTIVE_LEVEL.checkpointXs || [ACTIVE_LEVEL.checkpointX];
 const PLAYER_Z = 2;
 const PLAYER_START_Y = -0.98;
 const GRAVITY = 18;
@@ -369,7 +369,7 @@ function createForest() {
     layer.add(trunk, crown);
   };
 
-  for (let i = 0; i < 22; i += 1) {
+  for (let i = 0; i < 30; i += 1) {
     addTree(
       farLayer,
       -13 + i * 2.8,
@@ -380,7 +380,7 @@ function createForest() {
     );
   }
 
-  for (let i = 0; i < 18; i += 1) {
+  for (let i = 0; i < 26; i += 1) {
     addTree(
       midLayer,
       -9 + i * 3,
@@ -391,7 +391,7 @@ function createForest() {
     );
   }
 
-  [-3, 2.2, 7.8, 13.6, 19.4, 25, 31.5, 36].forEach((x, index) => {
+  [-3, 2.2, 7.8, 13.6, 19.4, 25, 31.5, 36, 42, 48, 54, 60, 66].forEach((x, index) => {
     const height = 4.8 + (index % 3) * 0.65;
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.38, height, 9), trunkMaterial);
     trunk.position.set(x, height / 2 - 2, -3.8 - (index % 2) * 0.5);
@@ -403,7 +403,7 @@ function createForest() {
   });
 
   const haze = new THREE.Mesh(
-    new THREE.PlaneGeometry(52, 2.2),
+    new THREE.PlaneGeometry(82, 2.2),
     new THREE.MeshBasicMaterial({
       color: 0x4c927c,
       transparent: true,
@@ -412,7 +412,7 @@ function createForest() {
       depthWrite: false,
     }),
   );
-  haze.position.set(15, -0.55, -8.6);
+  haze.position.set(30, -0.55, -8.6);
   farLayer.add(haze);
 
   scene.add(farLayer, midLayer, nearLayer);
@@ -828,7 +828,7 @@ function createForestAtmosphere() {
   fogContext.fillRect(0, 0, 256, 128);
   const fogTexture = new THREE.CanvasTexture(fogCanvas);
 
-  [1, 8, 15, 22, 29, 36].forEach((x, index) => {
+  [1, 8, 15, 22, 29, 36, 43, 50, 57, 64].forEach((x, index) => {
     const material = new THREE.SpriteMaterial({
       map: fogTexture,
       color: index % 2 === 0 ? 0x8fd3bd : 0x739e91,
@@ -845,7 +845,7 @@ function createForestAtmosphere() {
     atmosphere.fog.push(fog);
   });
 
-  [8.8, 20.5, 29.2].forEach((x, index) => {
+  [8.8, 20.5, 29.2, 38.5, 48, 58].forEach((x, index) => {
     const color = index === 1 ? 0x9cebd0 : 0xb7dff4;
     const light = new THREE.PointLight(color, 7 + index, 7, 2);
     light.position.set(x, 2.7 + (index % 2) * 0.45, 1.5);
@@ -870,7 +870,7 @@ function createForestAtmosphere() {
   const moteCount = 120;
   const motePositions = new Float32Array(moteCount * 3);
   for (let i = 0; i < moteCount; i += 1) {
-    motePositions[i * 3] = -7 + Math.random() * 44;
+    motePositions[i * 3] = -7 + Math.random() * 75;
     motePositions[i * 3 + 1] = -1.7 + Math.random() * 7.4;
     motePositions[i * 3 + 2] = -0.8 + Math.random() * 4;
   }
@@ -984,7 +984,7 @@ function createAtmosphere() {
   scene.add(atmosphere.motes);
 }
 
-function createCheckpoint() {
+function createCheckpoint(checkpointX) {
   const group = new THREE.Group();
   const baseMaterial = mat(0x162333, 0.62, 0.4);
   const glowMaterial = new THREE.MeshStandardMaterial({
@@ -1022,7 +1022,7 @@ function createCheckpoint() {
   beam.position.y = 3.15;
   beam.renderOrder = 2;
   group.add(base, pole, orb, ring, beam);
-  group.position.set(CHECKPOINT_X, -2, PLAYER_Z - 0.32);
+  group.position.set(checkpointX, -2, PLAYER_Z - 0.32);
   const light = new THREE.PointLight(0x55e7f8, 3.5, 3.5, 2);
   light.position.set(0, 0.88, 0.45);
   group.add(light);
@@ -1035,8 +1035,8 @@ function createCheckpoint() {
     ringMaterial,
     beamMaterial,
     light,
-    x: CHECKPOINT_X,
-    respawnX: CHECKPOINT_X + 0.75,
+    x: checkpointX,
+    respawnX: checkpointX + 0.75,
     activated: false,
     activation: 0,
   });
@@ -1063,7 +1063,7 @@ function createWorld() {
   encoreSparks = createEncoreSparks();
   if (IS_FOREST) createForestAtmosphere();
   else createAtmosphere();
-  createCheckpoint();
+  CHECKPOINTS.forEach(createCheckpoint);
 }
 
 function createGuitar() {
@@ -1652,7 +1652,7 @@ function createRain() {
   const dropCount = 280;
   const positions = new Float32Array(dropCount * 2 * 3);
   for (let i = 0; i < dropCount; i += 1) {
-    const x = -15 + Math.random() * 70;
+    const x = -15 + Math.random() * 95;
     const y = -2 + Math.random() * 16;
     const z = -4 + Math.random() * 8;
     const offset = i * 6;
