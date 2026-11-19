@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { ACTIVE_LEVEL, NEXT_LEVEL } from "./levels.js?v=forest-ground-rhythm-1";
+import { ACTIVE_LEVEL, NEXT_LEVEL } from "./levels.js?v=progression-system-1";
 
 const TOTAL_NOTES = ACTIVE_LEVEL.notes.length;
 const IS_FOREST = ACTIVE_LEVEL.theme === "forest";
@@ -24,7 +24,38 @@ const EXIT_DOOR = {
   maxX: STAGE_X + ACTIVE_LEVEL.exitDoorHalfWidth,
 };
 const EXIT_FLOOR_TOP = ACTIVE_LEVEL.stagePlatform.y + ACTIVE_LEVEL.stagePlatform.height / 2;
-const CHECKPOINTS = ACTIVE_LEVEL.checkpointXs || [ACTIVE_LEVEL.checkpointX];
+const LEGACY_CHECKPOINT_XS = ACTIVE_LEVEL.checkpointXs
+  || (Number.isFinite(ACTIVE_LEVEL.checkpointX) ? [ACTIVE_LEVEL.checkpointX] : []);
+const CHECKPOINT_DEFINITIONS = (ACTIVE_LEVEL.checkpoints || LEGACY_CHECKPOINT_XS).map(
+  (checkpoint, index) => {
+    const definition = typeof checkpoint === "number" ? { x: checkpoint } : checkpoint;
+    return {
+      id: definition.id || `checkpoint-${index + 1}`,
+      x: definition.x,
+      respawnOffset: definition.respawnOffset ?? 0.75,
+      activationRadius: definition.activationRadius ?? 1.05,
+      text: definition.text || {},
+    };
+  },
+);
+const OBJECTIVE_DEFINITIONS = ACTIVE_LEVEL.objectives || [
+  {
+    id: "reach-exit",
+    type: "reach-exit",
+    target: 1,
+    startText: ACTIVE_LEVEL.missionText,
+    completeText: ACTIVE_LEVEL.completeMission,
+  },
+];
+const CHECKPOINT_TEXT = {
+  activated: "The sound beacon remembers your progress. Your rhythm is restored.",
+  respawned: "The sound beacon brings you back. The path continues ahead.",
+  guidance: "You kept the notes and sound charges saved at the beacon.",
+  guidanceLabel: "Checkpoint",
+  defeated: "The silence broke your rhythm. The sound beacon is still listening.",
+  savedProgress: "The beacon remembers {collected} of {total} lost notes.",
+  ...ACTIVE_LEVEL.checkpointText,
+};
 const PLAYER_Z = 2;
 const PLAYER_START_Y = -0.98;
 const GRAVITY = 18;
@@ -238,6 +269,7 @@ let audioWarmupComplete = false;
 let landingBounce = 0;
 let soundWaveCooldown = 0;
 let checkpointState = null;
+let objectiveStates = new Map();
 let guidanceTimer = null;
 let checkpointNoticeTimer = null;
 let nextTransitionTimer = null;
@@ -282,6 +314,96 @@ function showCheckpointNotice() {
   clearTimeout(checkpointNoticeTimer);
   ui.checkpointNotice.hidden = false;
   checkpointNoticeTimer = setTimeout(hideCheckpointNotice, 2400);
+}
+
+function formatProgressText(template, values = {}) {
+  return String(template || "").replace(/\{(\w+)\}/g, (match, key) => (
+    Object.prototype.hasOwnProperty.call(values, key) ? values[key] : match
+  ));
+}
+
+function objectiveTarget(definition) {
+  return definition.target === "all" ? TOTAL_NOTES : Number(definition.target ?? 1);
+}
+
+function resetObjectives() {
+  objectiveStates = new Map(OBJECTIVE_DEFINITIONS.map((definition) => [
+    definition.id,
+    {
+      progress: 0,
+      complete: false,
+    },
+  ]));
+}
+
+function captureObjectiveStates() {
+  return OBJECTIVE_DEFINITIONS.map((definition) => {
+    const state = objectiveStates.get(definition.id) || { progress: 0, complete: false };
+    return {
+      id: definition.id,
+      progress: state.progress,
+      complete: state.complete,
+    };
+  });
+}
+
+function restoreObjectiveStates(savedStates = []) {
+  resetObjectives();
+  savedStates.forEach((saved) => {
+    if (objectiveStates.has(saved.id)) {
+      objectiveStates.set(saved.id, {
+        progress: saved.progress,
+        complete: saved.complete,
+      });
+    }
+  });
+}
+
+function updateObjectiveProgress(type, progress, announce = true) {
+  let announcement = "";
+  OBJECTIVE_DEFINITIONS
+    .filter((definition) => definition.type === type)
+    .forEach((definition) => {
+      const previous = objectiveStates.get(definition.id) || { progress: 0, complete: false };
+      const target = objectiveTarget(definition);
+      const next = {
+        progress: Math.max(previous.progress, progress),
+        complete: progress >= target,
+      };
+      objectiveStates.set(definition.id, next);
+      if (!announce) return;
+      const template = next.complete ? definition.completeText : definition.progressText;
+      if (template) {
+        announcement = formatProgressText(template, {
+          progress: next.progress,
+          target,
+          remaining: Math.max(0, target - next.progress),
+        });
+      }
+    });
+  return announcement;
+}
+
+function initialObjectiveText() {
+  const primary = OBJECTIVE_DEFINITIONS.find((definition) => !definition.optional)
+    || OBJECTIVE_DEFINITIONS[0];
+  return primary?.startText || ACTIVE_LEVEL.missionText;
+}
+
+function checkpointCopy(checkpoint, key) {
+  return checkpoint?.text?.[key] || CHECKPOINT_TEXT[key];
+}
+
+function captureCheckpointState(checkpoint) {
+  return {
+    checkpointId: checkpoint.id,
+    respawnX: checkpoint.respawnX,
+    collected,
+    soundEnergy,
+    soundWavesUsed,
+    notes: notes.map((note) => note.collected),
+    objectives: captureObjectiveStates(),
+  };
 }
 
 function pauseGame() {
@@ -985,7 +1107,8 @@ function createAtmosphere() {
   scene.add(atmosphere.motes);
 }
 
-function createCheckpoint(checkpointX) {
+function createCheckpoint(definition) {
+  const checkpointX = definition.x;
   const group = new THREE.Group();
   const baseMaterial = mat(0x162333, 0.62, 0.4);
   const glowMaterial = new THREE.MeshStandardMaterial({
@@ -1036,8 +1159,11 @@ function createCheckpoint(checkpointX) {
     ringMaterial,
     beamMaterial,
     light,
+    id: definition.id,
     x: checkpointX,
-    respawnX: checkpointX + 0.75,
+    respawnX: checkpointX + definition.respawnOffset,
+    activationRadius: definition.activationRadius,
+    text: definition.text,
     activated: false,
     activation: 0,
   });
@@ -1064,7 +1190,7 @@ function createWorld() {
   encoreSparks = createEncoreSparks();
   if (IS_FOREST) createForestAtmosphere();
   else createAtmosphere();
-  CHECKPOINTS.forEach(createCheckpoint);
+  CHECKPOINT_DEFINITIONS.forEach(createCheckpoint);
 }
 
 function createGuitar() {
@@ -1951,17 +2077,11 @@ function resetThreats() {
 
 function activateCheckpoint(checkpoint) {
   checkpoint.activated = true;
-  checkpointState = {
-    checkpoint,
-    collected,
-    soundEnergy,
-    soundWavesUsed,
-    notes: notes.map((note) => note.collected),
-  };
+  checkpointState = captureCheckpointState(checkpoint);
   health = MAX_HEALTH;
   updateHealth();
   ui.retry.textContent = "Return to checkpoint";
-  ui.mission.textContent = "The sound beacon remembers your progress. Your rhythm is restored.";
+  ui.mission.textContent = checkpointCopy(checkpoint, "activated");
   showCheckpointNotice();
   tone(220, 0.22, 0, "sine", 0.06);
   tone(330, 0.24, 0.08, "triangle", 0.055);
@@ -1975,7 +2095,7 @@ function updateCheckpoints(elapsed) {
       && !completed
       && !defeated
       && !checkpoint.activated
-      && Math.abs(player.position.x - checkpoint.x) < 1.05
+      && Math.abs(player.position.x - checkpoint.x) < checkpoint.activationRadius
     ) {
       activateCheckpoint(checkpoint);
     }
@@ -2013,15 +2133,23 @@ function respawnAtCheckpoint() {
   soundWaveCooldown = 0;
   paused = false;
   hideCheckpointNotice();
-  placePlayer(checkpointState.checkpoint.respawnX);
+  const activeCheckpoint = checkpoints.find(
+    (checkpoint) => checkpoint.id === checkpointState.checkpointId,
+  );
+  placePlayer(checkpointState.respawnX);
   restoreNotes(checkpointState.notes);
+  restoreObjectiveStates(checkpointState.objectives);
   resetThreats();
   resetStageLighting();
   ui.noteCount.textContent = `${collected} / ${TOTAL_NOTES}`;
   updateHealth();
   updateSoundEnergy();
-  ui.mission.textContent = "The sound beacon brings you back. The next shadow is ahead.";
-  showGuidance("You kept the notes and sound charges saved at the beacon.", "Checkpoint", 4200);
+  ui.mission.textContent = checkpointCopy(activeCheckpoint, "respawned");
+  showGuidance(
+    checkpointCopy(activeCheckpoint, "guidance"),
+    checkpointCopy(activeCheckpoint, "guidanceLabel"),
+    4200,
+  );
   ui.encore.hidden = true;
   ui.gameOver.hidden = true;
   ui.pauseMenu.hidden = true;
@@ -2041,11 +2169,17 @@ function defeat() {
   releaseTouchMovement();
   velocityY = 0;
   player.userData.rig.visual.visible = true;
+  const activeCheckpoint = checkpointState
+    ? checkpoints.find((checkpoint) => checkpoint.id === checkpointState.checkpointId)
+    : null;
   ui.mission.textContent = checkpointState
-    ? "The silence broke your rhythm. The sound beacon is still listening."
-    : "The silence caught the last beat. Try the street again.";
+    ? checkpointCopy(activeCheckpoint, "defeated")
+    : "The silence caught the last beat. Try the path again.";
   ui.gameOverScore.textContent = checkpointState
-    ? `The beacon remembers ${checkpointState.collected} of ${TOTAL_NOTES} lost notes.`
+    ? formatProgressText(checkpointCopy(activeCheckpoint, "savedProgress"), {
+      collected: checkpointState.collected,
+      total: TOTAL_NOTES,
+    })
     : `You recovered ${collected} of ${TOTAL_NOTES} lost notes before the silence closed in.`;
   ui.retry.textContent = checkpointState ? "Return to checkpoint" : "Try again";
   ui.pauseButton.hidden = true;
@@ -2099,6 +2233,7 @@ function reset() {
   soundEnergy = STARTING_SOUND_ENERGY;
   soundWavesUsed = 0;
   checkpointState = null;
+  resetObjectives();
   invulnerabilityTime = 0;
   soundWaveCooldown = 0;
   exitHintShown = false;
@@ -2118,7 +2253,7 @@ function reset() {
   ui.noteCount.textContent = `0 / ${TOTAL_NOTES}`;
   updateHealth();
   updateSoundEnergy();
-  ui.mission.textContent = ACTIVE_LEVEL.missionText;
+  ui.mission.textContent = initialObjectiveText();
   ui.encore.hidden = true;
   ui.gameOver.hidden = true;
   ui.pauseMenu.hidden = true;
@@ -2160,7 +2295,8 @@ function finish() {
   encoreEntryShoulders.back.copy(backArm.quaternion);
   encoreEntryShoulders.front.copy(frontArm.quaternion);
   resetStageLighting();
-  ui.mission.textContent = ACTIVE_LEVEL.completeMission;
+  const objectiveCompletion = updateObjectiveProgress("reach-exit", 1);
+  ui.mission.textContent = objectiveCompletion || ACTIVE_LEVEL.completeMission;
   hideGuidance();
   hideCheckpointNotice();
   ui.pauseButton.hidden = true;
@@ -2341,10 +2477,12 @@ function updateNotes(elapsed) {
       }
       tone(330 * 1.12 ** index, 0.24, 0, "sine");
       tone(495 * 1.08 ** index, 0.18, 0.055, "triangle");
-      if (soundEnergy > previousEnergy && collected < TOTAL_NOTES) {
-        ui.mission.textContent = "A lost note restored one sound charge.";
-      }
-      if (collected === TOTAL_NOTES) ui.mission.textContent = "Every lost note is with you. Take them to the stage.";
+      const objectiveUpdate = updateObjectiveProgress(
+        "collect-notes",
+        collected,
+        soundEnergy > previousEnergy || collected === TOTAL_NOTES,
+      );
+      if (objectiveUpdate) ui.mission.textContent = objectiveUpdate;
     }
   });
 }
