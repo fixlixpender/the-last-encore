@@ -726,6 +726,20 @@ input:focus-visible {
   opacity: 0.42;
 }
 
+.touch-sound.is-charging {
+  border-color: #bdf7ff;
+  box-shadow:
+    0 0 30px rgb(255 85 207 / 34%),
+    inset 0 0 22px rgb(83 232 255 / 18%);
+}
+
+.touch-sound.is-charged {
+  color: #071116;
+  background: #ff8ade;
+  box-shadow: 0 0 36px rgb(255 85 207 / 62%);
+  animation: power-chord-ready 420ms ease-in-out infinite alternate;
+}
+
 .guidance {
   position: fixed;
   z-index: 5;
@@ -837,6 +851,17 @@ input:focus-visible {
 
 .sound-control.is-cooling {
   opacity: 0.38;
+}
+
+.sound-control.is-charging {
+  color: #bdf7ff;
+  filter: drop-shadow(0 0 10px rgb(255 85 207 / 48%));
+}
+
+.sound-control.is-charged {
+  color: #ff8ade;
+  filter: drop-shadow(0 0 11px rgb(255 85 207 / 72%));
+  animation: power-chord-ready 420ms ease-in-out infinite alternate;
 }
 
 .sound-control.is-empty {
@@ -1120,5 +1145,16 @@ kbd {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+
+@keyframes power-chord-ready {
+  from {
+    transform: scale(0.98);
+  }
+
+  to {
+    transform: scale(1.05);
   }
 }
