@@ -213,7 +213,8 @@ scene.add(new THREE.HemisphereLight(
 const moon = new THREE.DirectionalLight(0xa8c9ff, 2.2);
 moon.position.set(-5, 10, 8);
 moon.castShadow = true;
-moon.shadow.mapSize.set(1024, 1024);
+const moonShadowSize = IS_FOREST ? 512 : 1024;
+moon.shadow.mapSize.set(moonShadowSize, moonShadowSize);
 moon.shadow.camera.left = -18;
 moon.shadow.camera.right = 18;
 moon.shadow.camera.top = 12;
@@ -278,6 +279,8 @@ let onGround = false;
 let facing = 1;
 let audio = null;
 let masterGain = null;
+let jumpOscillator = null;
+let jumpGain = null;
 let masterVolume = 1;
 let audioWarmupComplete = false;
 let landingBounce = 0;
@@ -1008,7 +1011,7 @@ function createForestAtmosphere() {
   });
   atmosphere.lights.push({ light: neon, base: BASE_GLOW_INTENSITY, phase: 0 });
 
-  const moteCount = 120;
+  const moteCount = 80;
   const motePositions = new Float32Array(moteCount * 3);
   for (let i = 0; i < moteCount; i += 1) {
     motePositions[i * 3] = -7 + Math.random() * 75;
@@ -1403,8 +1406,6 @@ function addNote(x, y, phase) {
     depthWrite: false,
   });
   const halo = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.018, 8, 48), haloMaterial);
-  const glow = new THREE.PointLight(0xff3fbf, 2.4, 2.2, 2);
-
   head.scale.set(1.34, 0.74, 0.52);
   head.rotation.z = -0.3;
   head.position.set(-0.055, -0.08, 0);
@@ -1416,7 +1417,7 @@ function addNote(x, y, phase) {
   halo.position.y = 0.22;
   glow.position.set(0, 0.24, 0.35);
 
-  group.add(head, stem, flag, highlight, halo, glow);
+  group.add(head, stem, flag, highlight, halo);
   group.position.set(x, y, PLAYER_Z + 0.1);
   scene.add(group);
   notes.push({
@@ -1428,7 +1429,6 @@ function addNote(x, y, phase) {
     visuals: [head, stem, flag, highlight, halo],
     material: noteMaterial,
     halo,
-    glow,
   });
 }
 
@@ -1794,7 +1794,7 @@ function updateSilenceMoths(delta, elapsed) {
 }
 
 function createRain() {
-  const dropCount = 280;
+  const dropCount = IS_FOREST ? 180 : 280;
   const positions = new Float32Array(dropCount * 2 * 3);
   for (let i = 0; i < dropCount; i += 1) {
     const x = -15 + Math.random() * 95;
@@ -1860,6 +1860,25 @@ function warmAudioEngine() {
       gain.disconnect();
     }, { once: true });
   });
+
+  if (!jumpOscillator) {
+    jumpOscillator = audio.createOscillator();
+    jumpGain = audio.createGain();
+    jumpOscillator.type = "square";
+    jumpOscillator.frequency.value = 165;
+    jumpGain.gain.value = 0.0001;
+    jumpOscillator.connect(jumpGain).connect(masterGain || audio.destination);
+    jumpOscillator.start();
+  }
+}
+
+function playJumpTone() {
+  if (!audio || !jumpGain) return;
+  const now = audio.currentTime;
+  jumpGain.gain.cancelScheduledValues(now);
+  jumpGain.gain.setValueAtTime(0.0001, now);
+  jumpGain.gain.exponentialRampToValueAtTime(0.055, now + 0.008);
+  jumpGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
 }
 
 function ensureAudio() {
@@ -1896,6 +1915,10 @@ function tone(frequency, duration = 0.18, delay = 0, type = "triangle", volume =
   oscillator.connect(gain).connect(masterGain || audio.destination);
   oscillator.start(start);
   oscillator.stop(start + duration + 0.02);
+  oscillator.addEventListener("ended", () => {
+    oscillator.disconnect();
+    gain.disconnect();
+  }, { once: true });
 }
 
 function removeSoundWave(wave) {
@@ -2237,10 +2260,8 @@ function restoreNotes(noteStates = null) {
     note.group.scale.setScalar(1);
     note.nearCuePlayed = false;
     note.material.emissiveIntensity = 2.2;
-    note.halo.material.opacity = 0.12;
+    note.halo.material.opacity = 0.16;
     note.halo.scale.setScalar(1);
-    note.glow.intensity = note.collected ? 0 : 2.4;
-    note.glow.distance = 2.2;
   });
 }
 
@@ -2659,11 +2680,9 @@ function updateNotes(elapsed) {
     note.group.position.y = note.originY + Math.sin(elapsed * 2.1 + note.phase) * (0.1 + proximity * 0.05);
     note.group.scale.setScalar(1 + response * 0.18);
     note.material.emissiveIntensity = 2.2 + response * 3.6;
-    note.halo.material.opacity = 0.12 + response * 0.48;
-    note.halo.scale.setScalar(1 + response * 0.42);
+    note.halo.material.opacity = 0.16 + response * 0.58;
+    note.halo.scale.setScalar(1 + response * 0.5);
     note.halo.rotation.z = -elapsed * (0.55 + proximity * 0.8);
-    note.glow.intensity = 2.4 + response * 8.5;
-    note.glow.distance = 2.2 + response * 2.3;
 
     if (proximity > 0.28 && !note.nearCuePlayed) {
       note.nearCuePlayed = true;
@@ -2676,7 +2695,6 @@ function updateNotes(elapsed) {
       note.visuals.forEach((visual) => {
         visual.visible = false;
       });
-      note.glow.intensity = 0;
       collected += 1;
       const previousEnergy = soundEnergy;
       soundEnergy = Math.min(MAX_SOUND_ENERGY, soundEnergy + 1);
@@ -2978,7 +2996,7 @@ function jump() {
   if (!started || completed || defeated || paused || !onGround) return;
   velocityY = PLAYER.jump;
   onGround = false;
-  tone(165, 0.1, 0, "square");
+  playJumpTone();
 }
 
 function animate() {
