@@ -195,7 +195,8 @@ const camera = new THREE.OrthographicCamera(-8, 8, 5, -5, 0.1, 100);
 camera.position.set(0, 0.7, 12);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const MAX_PIXEL_RATIO = IS_FOREST ? 1.5 : 2;
+renderer.setPixelRatio(Math.min(devicePixelRatio, MAX_PIXEL_RATIO));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
@@ -1826,6 +1827,20 @@ createSilenceMoths();
 const rain = createRain();
 const clock = new THREE.Clock();
 
+function warmGraphicsEngine() {
+  try {
+    if (typeof renderer.compileAsync === "function") {
+      return renderer.compileAsync(scene, camera).catch(() => undefined);
+    }
+    renderer.compile(scene, camera);
+  } catch {
+    // The normal render loop remains the fallback when precompilation is unavailable.
+  }
+  return Promise.resolve();
+}
+
+const graphicsWarmupPromise = warmGraphicsEngine();
+
 function warmAudioEngine() {
   if (!audio || audioWarmupComplete) return;
   audioWarmupComplete = true;
@@ -1855,8 +1870,11 @@ function ensureAudio() {
     masterGain.gain.value = masterVolume;
     masterGain.connect(audio.destination);
   }
-  if (audio && audio.state === "suspended") audio.resume();
+  const resumePromise = audio && audio.state === "suspended"
+    ? audio.resume().catch(() => undefined)
+    : Promise.resolve();
   warmAudioEngine();
+  return resumePromise;
 }
 
 function setVolume(value) {
@@ -3075,10 +3093,24 @@ addEventListener("blur", () => {
 });
 addEventListener("resize", resize);
 
-ui.start.addEventListener("click", () => {
-  ensureAudio();
+ui.start.addEventListener("click", async () => {
+  if (ui.start.disabled) return;
+  ui.start.disabled = true;
+  ui.start.textContent = "Tuning the signal…";
+  const audioReady = ensureAudio();
+  const graphicsReady = Promise.race([
+    graphicsWarmupPromise,
+    new Promise((resolve) => setTimeout(resolve, 900)),
+  ]);
+  await Promise.allSettled([
+    audioReady,
+    graphicsReady,
+    new Promise((resolve) => setTimeout(resolve, 70)),
+  ]);
   started = true;
   ui.intro.hidden = true;
+  ui.start.disabled = false;
+  ui.start.textContent = ACTIVE_LEVEL.startLabel;
   reset();
   showGuidance(
     touchPreferred
