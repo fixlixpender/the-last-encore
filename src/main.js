@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { ACTIVE_LEVEL, NEXT_LEVEL } from "./levels.js?v=progression-system-1";
+import { ACTIVE_LEVEL, NEXT_LEVEL } from "./levels.js?v=power-chord-1";
 
 const TOTAL_NOTES = ACTIVE_LEVEL.notes.length;
 const IS_FOREST = ACTIVE_LEVEL.theme === "forest";
@@ -12,6 +12,17 @@ const SHADOW = { width: 0.88, height: 0.82, speed: 1.35 };
 const PLATFORM_SENTINEL = { width: 0.64, height: 0.58, speed: 1.05 };
 const SILENCE_MOTH = { width: 1.16, height: 0.72 };
 const SOUND_WAVE = { cost: 1, range: 3.6, duration: 0.52, cooldown: 1.1, stun: 2.8 };
+const POWER_CHORD = {
+  cost: 2,
+  chargeTime: 0.8,
+  range: 7.2,
+  halfHeight: 1.45,
+  duration: 0.68,
+  cooldown: 1.45,
+  stun: 4.4,
+};
+const ACTIVE_ABILITIES = new Set(ACTIVE_LEVEL.abilities || ["sound-wave"]);
+const POWER_CHORD_UNLOCKED = ACTIVE_ABILITIES.has("power-chord");
 const LEVEL_SCORE = { note: 200, allNotesBonus: 600, health: 100 };
 const NOTE_PROXIMITY = { radius: 3.2, collectRadius: 0.9 };
 const DAMAGE = { invulnerability: 1.35, knockback: 1.55, bounce: 6.2 };
@@ -102,6 +113,7 @@ const ui = {
   introKicker: document.querySelector("#intro-kicker"),
   introTagline: document.querySelector("#intro-tagline"),
   introGoal: document.querySelector("#intro-goal"),
+  introSoundLabel: document.querySelector("#intro-sound-label"),
   encore: document.querySelector("#encore"),
   encoreKicker: document.querySelector("#encore-kicker"),
   encoreTitle: document.querySelector("#encore-title"),
@@ -157,6 +169,7 @@ ui.introTagline.textContent = ACTIVE_LEVEL.introTagline;
 ui.introGoal.textContent = ACTIVE_LEVEL.introGoal;
 ui.start.textContent = ACTIVE_LEVEL.startLabel;
 ui.mission.textContent = ACTIVE_LEVEL.missionText;
+ui.introSoundLabel.textContent = POWER_CHORD_UNLOCKED ? "Tap wave · hold chord" : "Sound wave";
 ui.game.classList.toggle("forest-level", IS_FOREST);
 ui.encoreKicker.textContent = ACTIVE_LEVEL.resultKicker;
 ui.encoreTitle.textContent = ACTIVE_LEVEL.resultTitle;
@@ -268,6 +281,9 @@ let masterVolume = 1;
 let audioWarmupComplete = false;
 let landingBounce = 0;
 let soundWaveCooldown = 0;
+let soundInputStartedAt = null;
+let powerChordEligible = false;
+let powerChordReady = false;
 let checkpointState = null;
 let objectiveStates = new Map();
 let guidanceTimer = null;
@@ -411,6 +427,7 @@ function pauseGame() {
   paused = true;
   keys.clear();
   releaseTouchMovement();
+  cancelSoundInput();
   hideGuidance();
   ui.pauseMenu.hidden = false;
   ui.game.classList.add("is-paused");
@@ -1874,19 +1891,98 @@ function removeSoundWave(wave) {
 function updateSoundEnergy() {
   ui.energyPips.forEach((pip, index) => pip.classList.toggle("is-filled", index < soundEnergy));
   ui.soundEnergy.setAttribute("aria-label", `${soundEnergy} of ${MAX_SOUND_ENERGY} sound charges`);
-  ui.soundControlLabel.textContent = `sound wave · ${soundEnergy}/${MAX_SOUND_ENERGY}`;
+  ui.soundControlLabel.textContent = POWER_CHORD_UNLOCKED
+    ? `tap wave · hold chord · ${soundEnergy}/${MAX_SOUND_ENERGY}`
+    : `sound wave · ${soundEnergy}/${MAX_SOUND_ENERGY}`;
   ui.soundEnergy.classList.toggle("is-empty", soundEnergy === 0);
   ui.touchSound.classList.toggle("is-empty", soundEnergy === 0);
-  ui.touchSound.setAttribute("aria-label", `Use sound wave, ${soundEnergy} of ${MAX_SOUND_ENERGY} charges available`);
+  ui.touchSound.setAttribute(
+    "aria-label",
+    POWER_CHORD_UNLOCKED
+      ? `Tap for sound wave or hold for Power Chord, ${soundEnergy} of ${MAX_SOUND_ENERGY} charges available`
+      : `Use sound wave, ${soundEnergy} of ${MAX_SOUND_ENERGY} charges available`,
+  );
+}
+
+function denySoundAbility() {
+  ui.mission.textContent = "The guitar is silent. Collect a lost note to recharge the sound wave.";
+  ui.soundEnergy.classList.add("is-denied");
+  setTimeout(() => ui.soundEnergy.classList.remove("is-denied"), 280);
+  tone(78, 0.14, 0, "square");
+}
+
+function beginSoundInput() {
+  if (
+    !started
+    || completed
+    || defeated
+    || paused
+    || soundWaveCooldown > 0
+    || soundInputStartedAt !== null
+  ) return;
+  if (soundEnergy < SOUND_WAVE.cost) {
+    denySoundAbility();
+    return;
+  }
+  soundInputStartedAt = gameTime;
+  powerChordEligible = POWER_CHORD_UNLOCKED && soundEnergy >= POWER_CHORD.cost;
+  powerChordReady = false;
+  if (powerChordEligible) {
+    ui.soundControl.classList.add("is-charging");
+    ui.touchSound.classList.add("is-charging");
+    tone(110, 0.24, 0, "sine", 0.035);
+  }
+}
+
+function cancelSoundInput() {
+  soundInputStartedAt = null;
+  powerChordEligible = false;
+  powerChordReady = false;
+  ui.soundControl.classList.remove("is-charging", "is-charged");
+  ui.touchSound.classList.remove("is-charging", "is-charged");
+  ui.soundControl.style.removeProperty("--charge-progress");
+  ui.touchSound.style.removeProperty("--charge-progress");
+  updateSoundEnergy();
+}
+
+function releaseSoundInput(cancelled = false) {
+  if (soundInputStartedAt === null) return;
+  const heldFor = gameTime - soundInputStartedAt;
+  const usePowerChord = !cancelled
+    && powerChordEligible
+    && heldFor >= POWER_CHORD.chargeTime;
+  cancelSoundInput();
+  if (cancelled) return;
+  if (usePowerChord) emitPowerChord();
+  else emitSoundWave();
+}
+
+function updateSoundInput() {
+  if (soundInputStartedAt === null || !powerChordEligible) return;
+  const progress = THREE.MathUtils.clamp(
+    (gameTime - soundInputStartedAt) / POWER_CHORD.chargeTime,
+    0,
+    1,
+  );
+  ui.soundControl.style.setProperty("--charge-progress", progress);
+  ui.touchSound.style.setProperty("--charge-progress", progress);
+  ui.soundControlLabel.textContent = progress >= 1
+    ? "power chord ready · release E"
+    : `charging power chord · ${Math.round(progress * 100)}%`;
+  if (progress >= 1 && !powerChordReady) {
+    powerChordReady = true;
+    ui.soundControl.classList.add("is-charged");
+    ui.touchSound.classList.add("is-charged");
+    ui.mission.textContent = "Power Chord ready — release to strike through the silence.";
+    tone(220, 0.2, 0, "triangle", 0.045);
+    tone(330, 0.24, 0.04, "sine", 0.04);
+  }
 }
 
 function emitSoundWave() {
   if (!started || completed || defeated || paused || soundWaveCooldown > 0) return;
   if (soundEnergy < SOUND_WAVE.cost) {
-    ui.mission.textContent = "The guitar is silent. Collect a lost note to recharge the sound wave.";
-    ui.soundEnergy.classList.add("is-denied");
-    setTimeout(() => ui.soundEnergy.classList.remove("is-denied"), 280);
-    tone(78, 0.14, 0, "square");
+    denySoundAbility();
     return;
   }
 
@@ -1912,7 +2008,7 @@ function emitSoundWave() {
   });
   group.position.set(player.position.x, player.position.y, PLAYER_Z + 0.7);
   scene.add(group);
-  soundWaves.push({ group, rings, age: 0 });
+  soundWaves.push({ kind: "radial", group, rings, age: 0 });
   soundWaveCooldown = SOUND_WAVE.cooldown;
 
   let hits = 0;
@@ -1941,8 +2037,84 @@ function emitSoundWave() {
   }
 }
 
+function emitPowerChord() {
+  if (
+    !POWER_CHORD_UNLOCKED
+    || !started
+    || completed
+    || defeated
+    || paused
+    || soundWaveCooldown > 0
+  ) return;
+  if (soundEnergy < POWER_CHORD.cost) {
+    ui.mission.textContent = "Power Chord needs two sound charges.";
+    ui.soundEnergy.classList.add("is-denied");
+    setTimeout(() => ui.soundEnergy.classList.remove("is-denied"), 280);
+    tone(78, 0.14, 0, "square");
+    return;
+  }
+
+  soundEnergy -= POWER_CHORD.cost;
+  soundWavesUsed += 1;
+  updateSoundEnergy();
+
+  const chordFacing = facing;
+  const group = new THREE.Group();
+  const rings = [0, 0.07, 0.14, 0.21].map((delay, index) => {
+    const material = new THREE.MeshBasicMaterial({
+      color: index % 2 === 0 ? 0xff55cf : 0x76eaff,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.46, index % 2 === 0 ? 0.055 : 0.035, 8, 56),
+      material,
+    );
+    ring.userData.delay = delay;
+    ring.renderOrder = 9;
+    group.add(ring);
+    return ring;
+  });
+  group.position.set(player.position.x, player.position.y, PLAYER_Z + 0.72);
+  scene.add(group);
+  soundWaves.push({
+    kind: "power",
+    group,
+    rings,
+    age: 0,
+    facing: chordFacing,
+  });
+  soundWaveCooldown = POWER_CHORD.cooldown;
+
+  let hits = 0;
+  const strikeTarget = (target) => {
+    if (target.isMoth && !target.group.visible) return;
+    const dx = (target.group.position.x - player.position.x) * chordFacing;
+    const dy = Math.abs(target.group.position.y - player.position.y);
+    if (dx < -0.2 || dx > POWER_CHORD.range || dy > POWER_CHORD.halfHeight) return;
+    target.stunTime = POWER_CHORD.stun;
+    target.hitFlash = 0.58;
+    hits += 1;
+  };
+  shadows.forEach(strikeTarget);
+  platformSentinels.forEach(strikeTarget);
+  silenceMoths.forEach(strikeTarget);
+
+  tone(110, 0.5, 0, "sawtooth", 0.075);
+  tone(165, 0.46, 0.025, "triangle", 0.06);
+  tone(220, 0.42, 0.05, "sawtooth", 0.055);
+  tone(330, 0.36, 0.08, "triangle", 0.05);
+  ui.mission.textContent = hits > 0
+    ? `Power Chord broke through ${hits} ${hits === 1 ? "silence creature" : "silence creatures"}.`
+    : "The Power Chord cuts through the moonlit trees.";
+}
+
 function updateSoundWaves(delta) {
   soundWaveCooldown = Math.max(0, soundWaveCooldown - delta);
+  updateSoundInput();
   ui.soundControl.classList.toggle("is-cooling", soundWaveCooldown > 0);
   ui.soundControl.classList.toggle("is-ready", soundWaveCooldown === 0 && soundEnergy > 0);
   ui.soundControl.classList.toggle("is-empty", soundEnergy === 0);
@@ -1951,20 +2123,31 @@ function updateSoundWaves(delta) {
   for (let index = soundWaves.length - 1; index >= 0; index -= 1) {
     const wave = soundWaves[index];
     wave.age += delta;
+    const duration = wave.kind === "power" ? POWER_CHORD.duration : SOUND_WAVE.duration;
     wave.rings.forEach((ring) => {
       const progress = THREE.MathUtils.clamp(
-        (wave.age - ring.userData.delay) / (SOUND_WAVE.duration - ring.userData.delay),
+        (wave.age - ring.userData.delay) / (duration - ring.userData.delay),
         0,
         1,
       );
       const eased = 1 - (1 - progress) ** 2;
-      const scale = THREE.MathUtils.lerp(0.12, SOUND_WAVE.range, eased);
       ring.visible = wave.age >= ring.userData.delay;
-      ring.scale.setScalar(scale);
-      ring.material.opacity = (1 - progress) * 0.82;
+      if (wave.kind === "power") {
+        ring.position.x = wave.facing * THREE.MathUtils.lerp(0.28, POWER_CHORD.range, eased);
+        ring.scale.set(
+          THREE.MathUtils.lerp(0.58, 1.08, eased),
+          THREE.MathUtils.lerp(0.72, 1.46, eased),
+          1,
+        );
+        ring.material.opacity = Math.sin(progress * Math.PI) * 0.92;
+      } else {
+        const scale = THREE.MathUtils.lerp(0.12, SOUND_WAVE.range, eased);
+        ring.scale.setScalar(scale);
+        ring.material.opacity = (1 - progress) * 0.82;
+      }
     });
 
-    if (wave.age >= SOUND_WAVE.duration) {
+    if (wave.age >= duration) {
       removeSoundWave(wave);
       soundWaves.splice(index, 1);
     }
@@ -2165,6 +2348,7 @@ function respawnAtCheckpoint() {
 
 function defeat() {
   defeated = true;
+  cancelSoundInput();
   keys.clear();
   releaseTouchMovement();
   velocityY = 0;
@@ -2236,6 +2420,13 @@ function reset() {
   resetObjectives();
   invulnerabilityTime = 0;
   soundWaveCooldown = 0;
+  soundInputStartedAt = null;
+  powerChordEligible = false;
+  powerChordReady = false;
+  ui.soundControl.classList.remove("is-charging", "is-charged");
+  ui.touchSound.classList.remove("is-charging", "is-charged");
+  ui.soundControl.style.removeProperty("--charge-progress");
+  ui.touchSound.style.removeProperty("--charge-progress");
   exitHintShown = false;
   paused = false;
   gameTime = 0;
@@ -2281,6 +2472,7 @@ function calculateFinalScore() {
 function finish() {
   if (completed) return;
   completed = true;
+  cancelSoundInput();
   velocityY = 0;
   keys.clear();
   releaseTouchMovement();
@@ -2840,11 +3032,20 @@ ui.touchSound.addEventListener("pointerdown", (event) => {
   ensureAudio();
   ui.touchSound.classList.add("is-pressed");
   ui.touchSound.setPointerCapture?.(event.pointerId);
-  emitSoundWave();
+  beginSoundInput();
 });
-ui.touchSound.addEventListener("pointerup", () => ui.touchSound.classList.remove("is-pressed"));
-ui.touchSound.addEventListener("pointercancel", () => ui.touchSound.classList.remove("is-pressed"));
-ui.touchSound.addEventListener("lostpointercapture", () => ui.touchSound.classList.remove("is-pressed"));
+ui.touchSound.addEventListener("pointerup", () => {
+  ui.touchSound.classList.remove("is-pressed");
+  releaseSoundInput();
+});
+ui.touchSound.addEventListener("pointercancel", () => {
+  ui.touchSound.classList.remove("is-pressed");
+  releaseSoundInput(true);
+});
+ui.touchSound.addEventListener("lostpointercapture", () => {
+  ui.touchSound.classList.remove("is-pressed");
+  releaseSoundInput(true);
+});
 
 addEventListener("keydown", (event) => {
   if (["Escape", "KeyP"].includes(event.code) && !event.repeat) {
@@ -2861,9 +3062,12 @@ addEventListener("keydown", (event) => {
   keys.add(event.code);
   if (["ArrowLeft", "ArrowRight", "ArrowUp", "Space"].includes(event.code)) event.preventDefault();
   if (["Space", "KeyW", "ArrowUp"].includes(event.code) && !event.repeat) jump();
-  if (event.code === "KeyE" && !event.repeat) emitSoundWave();
+  if (event.code === "KeyE" && !event.repeat) beginSoundInput();
 });
-addEventListener("keyup", (event) => keys.delete(event.code));
+addEventListener("keyup", (event) => {
+  keys.delete(event.code);
+  if (event.code === "KeyE") releaseSoundInput();
+});
 addEventListener("blur", () => {
   keys.clear();
   releaseTouchMovement();
@@ -2878,10 +3082,18 @@ ui.start.addEventListener("click", () => {
   reset();
   showGuidance(
     touchPreferred
-      ? "Use the arrows to move, ↑ to jump, and ∿ to spend one sound charge."
-      : "Move with A/D, jump with W or Space, and press E to spend one sound charge.",
+      ? (
+        POWER_CHORD_UNLOCKED
+          ? "Use the arrows to move, ↑ to jump, tap ∿ for a wave or hold it for Power Chord."
+          : "Use the arrows to move, ↑ to jump, and ∿ to spend one sound charge."
+      )
+      : (
+        POWER_CHORD_UNLOCKED
+          ? "Move with A/D, jump with W or Space, tap E for a wave or hold E for Power Chord."
+          : "Move with A/D, jump with W or Space, and press E to spend one sound charge."
+      ),
     "Controls",
-    7000,
+    7600,
   );
   tone(110, 0.45, 0, "sine");
 });
