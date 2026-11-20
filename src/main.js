@@ -1415,7 +1415,6 @@ function addNote(x, y, phase) {
   highlight.rotation.z = -0.3;
   highlight.position.set(-0.13, -0.025, 0.105);
   halo.position.y = 0.22;
-  glow.position.set(0, 0.24, 0.35);
 
   group.add(head, stem, flag, highlight, halo);
   group.position.set(x, y, PLAYER_Z + 0.1);
